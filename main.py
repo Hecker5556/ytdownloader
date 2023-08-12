@@ -48,7 +48,7 @@ class ytdownload:
         if video and audio:
             logging.info('successfully downloaded both, merging now')
             try:
-                result = subprocess.run(f'ffmpeg -i tempvideo.{videoextension} -i tempaudio.{audioextension} -v quiet -c:v copy -map 0:v:0 -map 1:a:0 -y merged.{videoextension}'.split(), check=True)
+                result = subprocess.run(f'ffmpeg -i tempvideo.{videoextension} -i tempaudio.{audioextension} -v quiet -c:v copy {"-c:a copy" if videoextension == audioextension else ""}-map 0:v:0 -map 1:a:0 -y merged.{videoextension}'.split(), check=True)
             except Exception as e:
                 print(e)
                 return
@@ -512,7 +512,8 @@ class ytdownload:
                     'width': video.get('width'),
                     'height': video.get('height'),
                     'audio quality': audio.get('audioQuality'),
-                    'mimeType': video.get('mimeType'),
+                    'video codec': video.get('mimeType'),
+                    'audio codec': audio.get('mimeType'),
                     'filesize': str(round(os.path.getsize(filename)/(1024*1024),2))}
             elif manifest and not audioonly:
                 return {'filename': filename,
