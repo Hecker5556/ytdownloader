@@ -10,5 +10,5 @@ with open('.env', 'w') as f1:
     sapisid = str(input('SAPISID: '))
     f1.write(f'SAPISID = "{sapisid}"\n')
     authorization = str(input('authorization: '))
-    f1.write(f'authorization = "{authorization}"')
+    f1.write(f'authorization = "{authorization}"\n')
     f1.write('apikey = "AIzaSyB-63vPrdThhKuerbB2N_l7Kwwcxj6yUA"')
