@@ -39,4 +39,20 @@ options:
 
   --audio-only, -a      whether to only extract audio 
 
-  --mp3-audio, -mp3     when downloading audio only, whether to convert it to mp3```
+  --mp3-audio, -mp3     when downloading audio only, whether to convert it to mp3
+  ```
+  ## age restricted videos
+  ### if you want to download age restricted videos/videos only your account can see, you'll need to follow these instructions:
+  ### 1. open developers tab on a browser (ctrl+shift+i)
+  ### 2. go to network traffic 
+  ![network tab image](networktab.png)
+  ### 3. go to the age restricted video (if network tab closes or something, just open it up again and refresh page)
+  ### 4. right click the first request (sometimes may be different but still applies)
+  ![first request](firstresult.png)
+  ### 5. right click and select 'copy as curl (bash/POSIX)
+  ![rightclick](https://cdn.discordapp.com/attachments/949000882853400699/1140038770004082688/image.png)
+  ### 6. head to [curl converter](https://curlconverter.com/) and paste
+  ### 7. using the cookies and headers you recieved, run 
+    python createenv.py
+  ### and fill in the details it asks for 
+  ## And you're Done!

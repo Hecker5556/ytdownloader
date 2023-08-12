@@ -126,7 +126,7 @@ class ytdownload:
             raise ytdownload.invalidcodec(f"{codec} isnt a valid video codec, use one of these: ['vp9', 'avc1', 'av01']")
         log_level = logging.DEBUG if verbose else logging.INFO
         logging.basicConfig(level=log_level, format="%(levelname)s: %(message)s - linenumber: %(lineno)d")
-        links, otherinfo, basejslink = getinfo(link, verbose=verbose, manifest=manifest, premerged=premerged, nodownload=nodownload)
+        links, otherinfo, basejslink, needlogin = getinfo(link, verbose=verbose, manifest=manifest, premerged=premerged, nodownload=nodownload)
         if nodownload:
             logging.info('writing information into files')
 
@@ -136,7 +136,7 @@ class ytdownload:
             for key, value in links['mergedsig'].items():
                 if value.get('contentLength'):
                     continue
-                url = decrypt(value.get('signatureCipher'), functions=functions, verbose=verbose)
+                url = decrypt(value.get('signatureCipher'), functions=functions, verbose=verbose, needlogin=needlogin)
                 r = requests.get(url, stream=True)
                 contentLength = r.headers.get('content-length')
                 links['mergedsig'][key]['contentLength'] = contentLength
@@ -299,9 +299,9 @@ class ytdownload:
                 functions = getfunctions(basejslink, verbose=verbose)
                 if not audioonly:
                     logging.debug(f'deciphering itag: {video.get("itag")}')
-                    video['url'] = decrypt(video.get('signatureCipher'), functions, verbose=verbose)
+                    video['url'] = decrypt(video.get('signatureCipher'), functions, verbose=verbose, needlogin=needlogin)
                 logging.debug(f'deciphering itag: {audio.get("itag")}')
-                audio['url'] = decrypt(audio.get('signatureCipher'), functions, verbose=verbose)
+                audio['url'] = decrypt(audio.get('signatureCipher'), functions, verbose=verbose, needlogin=needlogin)
 
             elif links['unmergednosig'] != {} and not manifest and not premerged:
                 logging.info('downloading unmerged no signatured')
@@ -483,9 +483,9 @@ class ytdownload:
                     functions = getfunctions(basejslink, verbose=verbose)
                     if not audioonly:
                         logging.debug(f'deciphering itag: {video.get("itag")}')
-                        video['url'] = decrypt(video.get('signatureCipher'), functions, verbose=verbose)
+                        video['url'] = decrypt(video.get('signatureCipher'), functions, verbose=verbose, needlogin=needlogin)
                     logging.debug(f'deciphering itag: {audio.get("itag")}')
-                    audio['url'] = decrypt(audio.get('signatureCipher'), functions, verbose=verbose)
+                    audio['url'] = decrypt(audio.get('signatureCipher'), functions, verbose=verbose, needlogin=needlogin)
                 elif links['unmergednosig'] != {} and not manifest and not premerged:
                     logging.info('downloading unmerged no signatured')
                     if not audioonly:
@@ -532,7 +532,7 @@ class ytdownload:
                     logging.debug('getting javascript functions')
                     functions = getfunctions(basejslink, verbose=verbose)
                     logging.debug(f'deciphering itag: {video.get("itag")}')
-                    video['url'] = decrypt(video.get('signatureCipher'), functions, verbose=verbose)
+                    video['url'] = decrypt(video.get('signatureCipher'), functions, verbose=verbose, needlogin=needlogin)
                 else:
                     logging.info('no merged formats found?')
                     raise ytdownload.someerror(f'bruh idk')

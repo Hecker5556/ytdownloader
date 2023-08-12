@@ -1,6 +1,6 @@
 from urllib.parse import unquote
 import subprocess, logging, requests, os
-def decrypt(sigurl: str, functions: dict, verbose: bool = False):
+def decrypt(sigurl: str, functions: dict, verbose: bool = False, needlogin: bool = False):
     logging.basicConfig(level = logging.DEBUG if verbose else logging.info)
 
     secondfunction = functions.get('secondfunction')
@@ -26,7 +26,41 @@ def decrypt(sigurl: str, functions: dict, verbose: bool = False):
     'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36',
     }
     if verbose:
-        r = requests.get(newurl,stream = True, headers=headers)
+        if needlogin:
+            from dotenv import load_dotenv
+            load_dotenv()
+            logcookies = {
+                'SID': os.getenv('SID'),
+                'HSID': os.getenv('HSID'),
+                'SSID': os.getenv('SSID'),
+                'APISID': os.getenv('APISID'),
+                'SAPISID': os.getenv('SAPISID'),
+            }
+
+            logheaders = {
+                'authority': 'www.youtube.com',
+                'accept': '*/*',
+                'accept-language': 'en-US,en;q=0.7',
+                'authorization': os.getenv('authorization'),
+                'content-type': 'application/json',
+                'origin': 'https://www.youtube.com',
+                'sec-ch-ua': '"Not/A)Brand";v="99", "Brave";v="115", "Chromium";v="115"',
+                'sec-ch-ua-mobile': '?0',
+                'sec-ch-ua-model': '""',
+                'sec-ch-ua-platform': '"Windows"',
+                'sec-ch-ua-platform-version': '"10.0.0"',
+                'sec-fetch-dest': 'empty',
+                'sec-fetch-mode': 'same-origin',
+                'sec-fetch-site': 'same-origin',
+                'sec-gpc': '1',
+                'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36',
+                'x-goog-authuser': '0',
+                'x-origin': 'https://www.youtube.com',
+                'x-youtube-bootstrap-logged-in': 'true',
+            }
+            r = requests.get(newurl,stream = True, headers=logheaders, cookies=logcookies)
+        else:
+            r = requests.get(newurl,stream = True, headers=headers)
     
         if r.status_code == 200:
             logging.debug(f'successfully deciphered:\n{signature} --> {deciphered}')

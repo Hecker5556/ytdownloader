@@ -297,7 +297,7 @@ def getinfo(link: str, verbose: bool = False, manifest: bool = False, premerged:
                             if i.get('contentLength'):
                                 continue
                             functions = getfunctions(basejslink, verbose=verbose)
-                            url = decrypt(i.get('signatureCipher'), functions=functions, verbose=verbose)
+                            url = decrypt(i.get('signatureCipher'), functions=functions, verbose=verbose, needlogin=needlogin)
                             r = requests.get(url, stream=True)
                             contentLength = r.headers.get('content-length')
                             allinks['mergedsig'][str(index)]['contentLength'] = contentLength
@@ -329,7 +329,7 @@ def getinfo(link: str, verbose: bool = False, manifest: bool = False, premerged:
         f1.write(pformat(allinks, sort_dicts=False))
     with open('videoinfo/allinks.txt', 'w') as f1:
         json.dump(allinks, f1)
-    return allinks, otherinfo, basejslink
+    return allinks, otherinfo, basejslink, needlogin
 
 
 
