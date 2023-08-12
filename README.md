@@ -47,10 +47,10 @@ options:
   ### 2. go to network traffic 
   ![network tab image](networktab.png)
   ### 3. go to the age restricted video (if network tab closes or something, just open it up again and refresh page)
-  ### 4. right click the first request (sometimes may be different but still applies)
-  ![first request](firstresult.png)
+  ### 4. search up v1 and find a request with this url
+  ![thisirl](https://cdn.discordapp.com/attachments/949000882853400699/1140045747736285266/image.png)
   ### 5. right click and select 'copy as curl (bash/POSIX)
-  ![rightclick](https://cdn.discordapp.com/attachments/949000882853400699/1140038770004082688/image.png)
+  ![rightclick](https://cdn.discordapp.com/attachments/949000882853400699/1140045888413241465/image.png)
   ### 6. head to [curl converter](https://curlconverter.com/) and paste
   ### 7. using the cookies and headers you recieved, run 
     python createenv.py
