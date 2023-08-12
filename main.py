@@ -48,7 +48,7 @@ class ytdownload:
         if video and audio:
             logging.info('successfully downloaded both, merging now')
             try:
-                result = subprocess.run(f'ffmpeg -i tempvideo.{videoextension} -i tempaudio.{audioextension} -c:v copy -map 0:v:0 -map 1:a:0 -y merged.{videoextension}'.split(), check=True)
+                result = subprocess.run(f'ffmpeg -i tempvideo.{videoextension} -i tempaudio.{audioextension} -v quiet -c:v copy -map 0:v:0 -map 1:a:0 -y merged.{videoextension}'.split(), check=True)
             except Exception as e:
                 print(e)
                 return
@@ -474,7 +474,7 @@ class ytdownload:
             if not manifest:
                 result = asyncio.run(normaldownload(audio.get('url'), filename=f"merged.{audio.get('mimeType').split('/')[1].split(';')[0] if audio.get('mimeType').split('/')[1].split(';')[0] == 'webm' else 'mp3'}"))
                 if mp3audio:
-                    subprocess.run(f"ffmpeg -i merged.{audio.get('mimeType').split('/')[1].split(';')[0]} merged.mp3")
+                    subprocess.run(f"ffmpeg -v quiet -i merged.{audio.get('mimeType').split('/')[1].split(';')[0]} merged.mp3")
                     result[1] = 'mp3'
             else:
                 result = manifestdownload(manifestvideo, audioonly=True, verbose=verbose)

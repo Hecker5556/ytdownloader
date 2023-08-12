@@ -23,10 +23,28 @@ def main():
         if pathtoexe in files:
             filepath = os.path.abspath(root)
             break
-    print(filepath)
-    current_path = os.environ['PATH']
-    new_path = f'{filepath}{os.pathsep}{current_path}'
-    os.environ['PATH'] = new_path
+    import winreg
+
+    def add_to_path(directory, user=False):
+        if user:
+            key = winreg.HKEY_CURRENT_USER
+            subkey = 'Environment'
+        else:
+            key = winreg.HKEY_LOCAL_MACHINE
+            subkey = r'SYSTEM\CurrentControlSet\Control\Session Manager\Environment'
+
+        with winreg.OpenKey(key, subkey, 0, winreg.KEY_ALL_ACCESS) as regkey:
+            path_value, _ = winreg.QueryValueEx(regkey, 'Path')
+            print(path_value)
+            path_value += ';' + directory
+            winreg.SetValueEx(regkey, 'Path', 0, winreg.REG_EXPAND_SZ, path_value)
+
+    # Example usage
+    directory_path = filepath
+
+    # Add to system PATH
+    add_to_path(directory_path)
+    input('\npress enter to exit\n')
 if __name__ == '__main__':
     import subprocess
     subprocess.run('pip install pyuac'.split())

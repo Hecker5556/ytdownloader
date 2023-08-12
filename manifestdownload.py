@@ -12,7 +12,7 @@ def manifestdownload(manifest: dict, verbose: bool = False, audioonly: bool = Fa
     logging.info('downloading chunked manifest videos...')
 
     try:
-        subprocess.check_output(f'ffmpeg {"-i "+manifest.get("URL") if not audioonly else ""} -i {manifest.get("AUDIOLINK")} -c copy merged.{"mp4" if not audioonly else "mp3"}')
+        subprocess.check_output(f'ffmpeg {"-i "+manifest.get("URL") if not audioonly else ""} -i {manifest.get("AUDIOLINK")} -v quiet -c copy merged.{"mp4" if not audioonly else "mp3"}')
     except Exception as e:
         traceback.print_exc()
     return f'merged.{"mp4" if not audioonly else "mp3"}', "mp4" if not audioonly else "mp3"
