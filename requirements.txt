@@ -1,0 +1,6 @@
+aiohttp
+aiofiles
+tqdm
+urllib3
+requests
+cx_Freeze

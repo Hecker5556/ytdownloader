@@ -1,0 +1,40 @@
+# Python Youtube Downloader
+
+## Usage:
+### First time setup:
+#### 1. in command prompt
+    git clone https://github.com/Hecker5556/ytdownloader.git
+#### 2. 
+    cd ytdownloader
+#### 3. if you haven't already, [install python](https://www.python.org/)
+    pip install -r requirements.txt
+#### 4. (OPTIONAL) build ytdownloader and add it to path (so that you can use it anywhere)
+    python setup.py build
+### If you built and added to path, you can replace 'python ytdownload.py' with just `ytdownload`
+```
+python ytdownload.py [link] [options]
+
+options:
+  -h, --help            show this help message and exit
+
+  --verbose, -v         print out connections, information, checks if signatre deciphering is working
+
+  --manifest, -m        whether to download videos from video manifest (ios)
+
+  --maxsize MAXSIZE, -s MAXSIZE
+                        maximum size in mb, may go over
+
+  --premerged, -p       whether to download premerged versions only (720p, 360p, 144p 3gpp)
+
+  --codec CODEC, -c CODEC
+                        which video codec to download, has to be one of these ['vp9', 'avc1', 'av01', None] (if you dont know what this is, vp9 is webm,   
+                        avc1 is mp4, av01 is new type of mp4 that may not work on many platforms)
+
+  --no-download, -nd    doesnt download, only gets all the information and stores in links.json and otherinfo.json
+
+  --priority PRIORITY, -pr PRIORITY
+                        prioritize video/audio quality when downloading under filesize. accepted argument: ["video", "audio", "none"], if none, will pair similar qualities, video by default
+
+  --audio-only, -a      whether to only extract audio 
+
+  --mp3-audio, -mp3     when downloading audio only, whether to convert it to mp3```
