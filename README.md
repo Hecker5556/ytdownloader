@@ -7,10 +7,12 @@
 #### 2. 
     cd ytdownloader
 #### 3. if you haven't already, [install python](https://www.python.org/)
-    pip install -r requirements.txt
-#### 4. (OPTIONAL) build ytdownloader and add it to path (so that you can use it anywhere)
+### this will download requirements, build exe and add to path (admin needed which will be asked almost on launch)
     python setup.py build
-### If you built and added to path, you can replace 'python ytdownload.py' with just `ytdownload`
+#### If you built and added to path, you can replace 'python ytdownload.py' with just `ytdownload`, make sure to open a new terminal
+#### if you don't want to build, just run
+    pip install -r requirements.txt
+## usage
 ```
 python ytdownload.py [link] [options]
 
