@@ -1,6 +1,7 @@
 import argparse
 from main import ytdownload
 from datetime import datetime
+import traceback, os
 parser = argparse.ArgumentParser(description='download youtube videos in different ways, file sizes')
 parser.add_argument("link", help="link to a youtube video")
 parser.add_argument("--verbose", "-v", action='store_true', help='print out connections, information, checks if signatre deciphering is working')
@@ -21,18 +22,28 @@ try:
                                 premerged=args.premerged, codec=args.codec,
                                 nodownload=args.no_download, priority=args.priority, 
                                 audioonly=args.audio_only, mp3audio=args.mp3_audio)
+except KeyboardInterrupt:
+    print('cleaning up')
+    for i in os.listdir():
+        if i.startswith('tempvideo') or i.startswith('tempaudio') or i.startswith('merged'):
+            print(f'deleting {i}')
+            os.remove(i)
+    for i in os.listdir('videoinfo'):
+        if i.startswith('funny') and i.endswith('.js'):
+            print(f'deleting {i}')
+            os.remove('videoinfo/'+i)
 except Exception as e:
-    import traceback, os
     traceback.print_exc()
     for i in os.listdir():
         if i.startswith('temp') or i.startswith('merged'):
             os.remove(i)
-    for i in os.listdir('videoinfo/segments'):
-        os.remove(f'videoinfo/segments/{i}')
-if result != 'complete':
-    print(" ".join(([": ".join((str(key), str(value))) for key, value in result.items()])))
-else:
-    print(result)
+try:
+    if result != 'complete':
+        print(" ".join(([": ".join((str(key), str(value))) for key, value in result.items()])))
+    else:
+        print(result)
+except:
+    pass
 finish = datetime.now()
 difference = finish-start
 print(f"it took {difference.seconds//60:02}:{difference.seconds%60:02}")

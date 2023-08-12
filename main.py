@@ -48,7 +48,7 @@ class ytdownload:
         if video and audio:
             logging.info('successfully downloaded both, merging now')
             try:
-                result = subprocess.run(f'ffmpeg -i tempvideo.{videoextension} -i tempaudio.{audioextension} -v quiet -c:v copy {"-c:a copy" if videoextension == audioextension else ""}-map 0:v:0 -map 1:a:0 -y merged.{videoextension}'.split(), check=True)
+                result = subprocess.run(f'ffmpeg -i tempvideo.{videoextension} -i tempaudio.{audioextension} -v quiet -c:v copy {"-c:a copy" if videoextension == audioextension else ""} -map 0:v:0 -map 1:a:0 -y merged.{videoextension}'.split(), check=True)
             except Exception as e:
                 print(e)
                 return
@@ -205,13 +205,35 @@ class ytdownload:
                     for videof in videoids:
                         for audiof in audioids:
                             if int(links['unmergedsig'][videof].get('contentLength'))/(1024*1024) + int(links['unmergedsig'][audiof].get('contentLength'))/(1024*1024) > maxsize:
+                                logging.debug(f"{videof} and {audiof} too big")
                                 continue
                             else:
+                                logging.debug(f"found pair, checking if same codecs {videof}, {audiof}")
                                 video = links['unmergedsig'][videof]
-                                audio = links['unmergedsig'][audiof]
-                                break
+
+                                logging.debug(f"{links['unmergedsig'][audiof]['mimeType'].split(';')[0].split('/')[1]}, {video['mimeType']}")
+                                if links['unmergedsig'][audiof]['mimeType'].split(';')[0].split('/')[1] in video['mimeType']:
+                                    audio = links['unmergedsig'][audiof]
+                                    logging.debug('found optimal pair')
+                                    break
+                                else:
+                                    logging.debug('nah')
+                                    continue
                         if video and audio:
                             break
+                    if video and not audio:
+                        #gonna have to mix codecs 
+                        logging.info('resorting to mixed codecs, merging will take longer')
+                        for videof in videoids:
+                            for audiof in audioids:
+                                if int(links['unmergedsig'][videof].get('contentLength'))/(1024*1024) + int(links['unmergedsig'][audiof].get('contentLength'))/(1024*1024) > maxsize:
+                                    continue
+                                else:
+                                    video = links['unmergedsig'][videof]
+                                    audio = links['unmergedsig'][audiof]
+                                    break
+                            if video and audio:
+                                break
                 elif priority == 'audio' and not audioonly:
                     for audiof in audioids:
                         for videof in videoids:
@@ -219,10 +241,26 @@ class ytdownload:
                                 continue
                             else:
                                 video = links['unmergedsig'][videof]
-                                audio = links['unmergedsig'][audiof]
-                                break
+                                if links['unmergedsig'][audiof]['mimeType'].split(';')[0].split('/')[1] in video['mimeType']:
+                                    audio = links['unmergedsig'][audiof]
+                                    break
+                                else:
+                                    continue
                         if video and audio:
                             break
+                    if video and not audio:
+                        #gonna have to mix codecs 
+                        logging.info('resorting to mixed codecs, merging will take longer')
+                        for audiof in audioids:
+                            for videof in videoids:
+                                if int(links['unmergedsig'][videof].get('contentLength'))/(1024*1024) + int(links['unmergedsig'][audiof].get('contentLength'))/(1024*1024) > maxsize:
+                                    continue
+                                else:
+                                    video = links['unmergedsig'][videof]
+                                    audio = links['unmergedsig'][audiof]
+                                    break
+                            if video and audio:
+                                break
                 else:
                     if not audioonly:
                         for videof, audiof in zip(videoids, audioids):
@@ -230,7 +268,21 @@ class ytdownload:
                                     continue
                                 else:
                                     video = links['unmergedsig'][videof]
-                                    audio = links['unmergedsig'][audiof]
+                                    if links['unmergedsig'][audiof]['mimeType'].split(';')[0].split('/')[1] in video['mimeType']:
+                                        audio = links['unmergedsig'][audiof]
+                                        break
+                                    else:
+                                        continue
+                        if video and not audio:
+                            #gonna have to mix codecs 
+                            logging.info('resorting to mixed codecs, merging will take longer')
+                            for videof, audiof in zip(videoids, audioids):
+                                    if int(links['unmergedsig'][videof].get('contentLength'))/(1024*1024) + int(links['unmergedsig'][audiof].get('contentLength'))/(1024*1024) > maxsize:
+                                        continue
+                                    else:
+                                        video = links['unmergedsig'][videof]
+                                        audio = links['unmergedsig'][audiof]
+                                        break
                     else:
                         for audiof in audioids:
                             if int(links['unmergedsig'][audiof].get('contentLength'))/(1024*1024)>maxsize:
@@ -267,10 +319,26 @@ class ytdownload:
                                 continue
                             else:
                                 video = links['unmergednosig'][videof]
-                                audio = links['unmergednosig'][audiof]
-                                break
+                                if links['unmergednosig'][audiof]['mimeType'].split(';')[0].split('/')[1] in video['mimeType']:
+                                    audio = links['unmergednosig'][audiof]
+                                    break
+                                else:
+                                    continue
                         if video and audio:
                             break
+                    if video and not audio:
+                        #gonna have to mix codecs 
+                        logging.info('resorting to mixed codecs, merging will take longer')
+                        for videof in videoids:
+                            for audiof in audioids:
+                                if int(links['unmergednosig'][videof].get('contentLength'))/(1024*1024) + int(links['unmergednosig'][audiof].get('contentLength'))/(1024*1024) > maxsize:
+                                    continue
+                                else:
+                                    video = links['unmergednosig'][videof]
+                                    audio = links['unmergednosig'][audiof]
+                                    break
+                            if video and audio:
+                                break
                 elif priority == 'audio' and not audioonly:
                     for audiof in audioids:
                         for videof in videoids:
@@ -278,10 +346,26 @@ class ytdownload:
                                 continue
                             else:
                                 video = links['unmergednosig'][videof]
-                                audio = links['unmergednosig'][audiof]
-                                break
+                                if links['unmergednosig'][audiof]['mimeType'].split(';')[0].split('/')[1] in video['mimeType']:
+                                    audio = links['unmergednosig'][audiof]
+                                    break
+                                else:
+                                    continue
                         if video and audio:
                             break
+                    if video and not audio:
+                        #gonna have to mix codecs 
+                        logging.info('resorting to mixed codecs, merging will take longer')
+                        for audiof in audioids:
+                            for videof in videoids:
+                                if int(links['unmergednosig'][videof].get('contentLength'))/(1024*1024) + int(links['unmergednosig'][audiof].get('contentLength'))/(1024*1024) > maxsize:
+                                    continue
+                                else:
+                                    video = links['unmergednosig'][videof]
+                                    audio = links['unmergednosig'][audiof]
+                                    break
+                            if video and audio:
+                                break
                 else:
                     if not audioonly:
                         for videof, audiof in zip(videoids, audioids):
@@ -289,8 +373,21 @@ class ytdownload:
                                 continue
                             else:
                                 video = links['unmergednosig'][videof]
-                                audio = links['unmergednosig'][audiof]
-                                break
+                                if links['unmergednosig'][audiof]['mimeType'].split(';')[0].split('/')[1] in video['mimeType']:
+                                    audio = links['unmergednosig'][audiof]
+                                    break
+                                else:
+                                    continue
+                    if video and not audio:
+                        #gonna have to mix codecs 
+                        logging.info('resorting to mixed codecs, merging will take longer')
+                        for videof, audiof in zip(videoids, audioids):
+                                if int(links['unmergednosig'][videof].get('contentLength'))/(1024*1024) + int(links['unmergednosig'][audiof].get('contentLength'))/(1024*1024) > maxsize:
+                                    continue
+                                else:
+                                    video = links['unmergednosig'][videof]
+                                    audio = links['unmergednosig'][audiof]
+                                    break
                     else:
                         for audiof in audioids:
                             if int(links['unmergednosig'][audiof].get('contentLength'))/(1024*1024)>maxsize:
@@ -373,10 +470,15 @@ class ytdownload:
                                 video = value
                                 break
                     for key, value in links['unmergedsig'].items():
-                        if 'audio' in value.get('mimeType'):
+                        if 'audio' in value.get('mimeType') and value.get('mimeType').split(';')[0].split('/')[1] in video.get('mimeType'):
                             audio = value
                             break
-                    
+                    if not audio:
+                        #different codec
+                        for key, value in links['unmergedsig'].items():
+                            if 'audio' in value.get('mimeType'):
+                                audio = value
+                                break
                     logging.debug('getting javascript functions')
                     functions = getfunctions(basejslink, verbose=verbose)
                     if not audioonly:
@@ -399,10 +501,15 @@ class ytdownload:
                         logging.debug(f'deciphering n param for itag: {video.get("itag")}')
                         video['url'] = nparam(video.get('url'), thirdfunction=functions.get('thirdfunction'), thirdfunctionname=functions.get('thirdfunctionname'))
                     for key, value in links['unmergednosig'].items():
-
-                        if 'audio' in value.get('mimeType'):
+                        if 'audio' in value.get('mimeType') and value.get('mimeType').split(';')[0].split('/')[1] in video.get('mimeType'):
                             audio = value
                             break
+                    if not audio:
+                        #different codec
+                        for key, value in links['unmergednosig'].items():
+                            if 'audio' in value.get('mimeType'):
+                                audio = value
+                                break
                     logging.debug(f'deciphering n param for itag: {audio.get("itag")}')
                     audio['url'] = nparam(audio.get('url'), thirdfunction=functions.get('thirdfunction'), thirdfunctionname=functions.get('thirdfunctionname'))
             elif premerged and not manifest and not audioonly:
@@ -508,12 +615,15 @@ class ytdownload:
                     'mimeType': video.get('mimeType'),
                     'filesize': str(round(os.path.getsize(filename)/(1024*1024),2))}
             elif not manifest and audio and not audioonly:
+                maincommand = 'ffprobe -v quiet -print_format json -show_format -show_streams -i '.split()
+                maincommand.append(f"{filename}")
                 return {'filename': filename,
                     'width': video.get('width'),
                     'height': video.get('height'),
                     'audio quality': audio.get('audioQuality'),
                     'video codec': video.get('mimeType'),
-                    'audio codec': audio.get('mimeType'),
+                    'original audio codec': audio.get('mimeType'),
+                    'audio codec': json.loads(subprocess.check_output(maincommand))['streams'][1]['codec_name'],
                     'filesize': str(round(os.path.getsize(filename)/(1024*1024),2))}
             elif manifest and not audioonly:
                 return {'filename': filename,
