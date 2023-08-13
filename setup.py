@@ -52,7 +52,7 @@ def main():
         #cant build to exe on linux
         pathtopy = "ytdownload.py"
         for root, dirs, files in os.walk('.'):
-            if pathtoexe in files:
+            if pathtopy in files:
                 filepath = os.path.abspath(root)
                 break
         with open(pathtopy, 'r') as f1:
