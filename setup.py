@@ -1,29 +1,31 @@
 def main():
     subprocess.run('pip install -r requirements.txt'.split())
-
-    from cx_Freeze import setup, Executable
-
-    build_options = {'packages': [], 'excludes': [], 'add_to_path': True}
-
-    base = 'console'
-
-    executables = [
-        Executable('ytdownload.py', base=base)
-    ]
-
-    setup(name='ytdownloader',
-        version = '1.0',
-        description = 'downloads youtube videos',
-        options = {'build_exe': build_options},
-        executables = executables)
-
+    
     import os, sys
-    pathtoexe = "ytdownload.exe"
-    for root, dirs, files in os.walk('.'):
-        if pathtoexe in files:
-            filepath = os.path.abspath(root)
-            break
     if sys.platform.startswith('win'):
+        subprocess.run('pip install cx_Freeze'.split())
+        from cx_Freeze import setup, Executable
+
+        build_options = {'packages': [], 'excludes': []}
+
+        base = 'console'
+
+        executables = [
+            Executable('ytdownload.py', base=base)
+        ]
+
+        setup(name='ytdownloader',
+            version = '1.0',
+            description = 'downloads youtube videos',
+            options = {'build_exe': build_options},
+            executables = executables)
+
+        pathtoexe = "ytdownload.exe"
+        for root, dirs, files in os.walk('.'):
+            if pathtoexe in files:
+                filepath = os.path.abspath(root)
+                break
+
         import winreg
 
         def add_to_path(directory, user=False):
@@ -40,12 +42,19 @@ def main():
                 path_value += ';' + directory
                 winreg.SetValueEx(regkey, 'Path', 0, winreg.REG_EXPAND_SZ, path_value)
 
-        # Example usage
         directory_path = filepath
 
-        # Add to system PATH
         add_to_path(directory_path)
     elif sys.platform.startswith('linux'):
+        #recursion issue with linux cx_freeze
+        subprocess.run('pip install pyinstaller'.split())
+        subprocess.run('pyinstaller --noconfirm --name=ytdownloader --console ytdownload.py'.split())
+        pathtoexe = "ytdownload.exe"
+        for root, dirs, files in os.walk('.'):
+            if pathtoexe in files:
+                filepath = os.path.abspath(root)
+                break
+            
         homedirectory = os.path.expanduser('~')
         profilefile = os.path.join(homedirectory, '.bashrc')
         with open(profilefile, 'a') as f1:
