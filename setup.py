@@ -64,7 +64,7 @@ def main():
         with open(profilefile, 'a') as f1:
             f1.write(f'\nexport PATH="$PATH:{filepath}"\n')
         print(filepath)
-        subprocess.run(f'chmod +x {filepath + "ytdownload.py"}'.split())
+        subprocess.run(f'chmod +x {filepath + "/ytdownload.py"}'.split())
         
        
     input('press enter to exit')
