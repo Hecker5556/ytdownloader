@@ -46,7 +46,7 @@ if sys.platform.startswith('win'):
         print('goodbye world')
         subprocess.run(f'rmdir /s {os.path.dirname(os.path.abspath(__file__))}'.split())
 elif sys.platform.startswith('linux'):
-    if os.getuid != 0:
+    if os.getuid() != 0:
         print('execute with sudo!')
     else:
         pathtopy = "ytdownload.py"
