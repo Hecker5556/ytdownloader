@@ -1,7 +1,7 @@
 def main():
     subprocess.run('pip install -r requirements.txt'.split())
     
-    import os, sys
+
     if sys.platform.startswith('win'):
         subprocess.run('pip install cx_Freeze'.split())
         from cx_Freeze import setup, Executable
@@ -47,7 +47,7 @@ def main():
         add_to_path(directory_path)
     elif sys.platform.startswith('linux'):
         #recursion issue with linux cx_freeze
-        subprocess.run('pip install pyinstaller'.split())
+        subprocess.run('pip install pyinstaller==5.1'.split())
         subprocess.run('pyinstaller --noconfirm --name=ytdownloader --console ytdownload.py'.split())
         pathtoexe = "ytdownload.exe"
         for root, dirs, files in os.walk('.'):
@@ -61,14 +61,20 @@ def main():
             f1.write(f'\nexport PATH="$PATH:{filepath}"\n')
     input('\npress enter to exit\n')
 if __name__ == '__main__':
-    import subprocess
-    subprocess.run('pip install pyuac'.split())
-    subprocess.run('pip install pypiwin32'.split())
-    #require admin to make sure modules are installed correctly
-    import pyuac 
+    import subprocess, sys, os
+    if sys.platform.startswith('win'):
+        subprocess.run('pip install pyuac'.split())
+        subprocess.run('pip install pypiwin32'.split())
+        #require admin to make sure modules are installed correctly
+        import pyuac 
 
-    if not pyuac.isUserAdmin():
-        pyuac.runAsAdmin()
-    else:
-        main()
-
+        if not pyuac.isUserAdmin():
+            pyuac.runAsAdmin()
+        else:
+            main()
+    elif sys.platform.startswith('linux'):
+        if os.getuid() != 0:
+            print('run as admin! (sudo)')
+        else:
+            main()
+        
