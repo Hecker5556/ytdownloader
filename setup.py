@@ -59,9 +59,10 @@ def main():
             script = f1.read()
         with open(pathtopy, 'w') as f1:
             f1.write('#!/usr/bin/env python\n' + script)
-        print(f'chmod +x {pathtopy}')
-        print(f'youre gonna be able to execute using ./{pathtopy}')
-        subprocess.run(f'chmod +x {pathtopy}'.split())
+        homedirectory = os.path.expanduser('~')
+        profilefile = os.path.join(homedirectory, '.bashrc')
+        with open(profilefile, 'a') as f1:
+            f1.write(f'\nexport PATH="$PATH:{filepath}"\n')
         
        
     input('press enter to exit')
