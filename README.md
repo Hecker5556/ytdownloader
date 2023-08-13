@@ -56,4 +56,9 @@ options:
   ### 7. using the cookies and headers you recieved, run 
     python createenv.py
   ### and fill in the details it asks for 
-  ## And you're Done!
+  ### And you're Done!
+  
+  ## How to uninstall
+  ### you can simply run 
+    python uninstall.py
+  ### and depending on platform, will remove from path, remove built files (if windows) and will ask if you also want to delete the whole directory
