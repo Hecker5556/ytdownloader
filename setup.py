@@ -39,8 +39,11 @@ def main():
             with winreg.OpenKey(key, subkey, 0, winreg.KEY_ALL_ACCESS) as regkey:
                 path_value, _ = winreg.QueryValueEx(regkey, 'Path')
                 print(path_value)
-                path_value += ';' + directory
-                winreg.SetValueEx(regkey, 'Path', 0, winreg.REG_EXPAND_SZ, path_value)
+                if directory not in path_value:
+                    path_value += ';' + directory
+                    winreg.SetValueEx(regkey, 'Path', 0, winreg.REG_EXPAND_SZ, path_value)
+                else:
+                    print(f'{directory} is already in path:\n{path_value}')
 
         directory_path = filepath
 
