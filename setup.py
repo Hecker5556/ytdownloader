@@ -47,6 +47,7 @@ def main():
         add_to_path(directory_path)
     elif sys.platform.startswith('linux'):
         #recursion issue with linux cx_freeze
+        sys.setrecursionlimit(sys.getrecursionlimit() * 5)
         subprocess.run('pip install pyinstaller==5.1'.split())
         subprocess.run('pyi-makespec ytdownload.py'.split())
         subprocess.run('pyinstaller ytdownload.spec'.split())
