@@ -49,22 +49,22 @@ def main():
 
         add_to_path(directory_path)
     elif sys.platform.startswith('linux'):
-        #recursion issue with linux cx_freeze
-        sys.setrecursionlimit(sys.getrecursionlimit() * 5)
-        subprocess.run('pip install pyinstaller==5.1'.split())
-        subprocess.run('pyi-makespec ytdownload.py'.split())
-        subprocess.run('pyinstaller ytdownload.spec'.split())
-        pathtoexe = "ytdownload.exe"
+        #cant build to exe on linux
+        pathtopy = "ytdownload.py"
         for root, dirs, files in os.walk('.'):
             if pathtoexe in files:
                 filepath = os.path.abspath(root)
                 break
-            
-        homedirectory = os.path.expanduser('~')
-        profilefile = os.path.join(homedirectory, '.bashrc')
-        with open(profilefile, 'a') as f1:
-            f1.write(f'\nexport PATH="$PATH:{filepath}"\n')
-    input('\npress enter to exit\n')
+        with open(pathtopy, 'r') as f1:
+            script = f1.read()
+        with open(pathtopy, 'w') as f1:
+            f1.write('#!/usr/bin/env python\n' + script)
+        print(f'chmod +x {pathtopy}')
+        print(f'youre gonna be able to execute using ./{pathtopy}')
+        subprocess.run(f'chmod +x {pathtopy}')
+        
+       
+    input('press enter to exit')
 if __name__ == '__main__':
     import subprocess, sys, os
     if sys.platform.startswith('win'):
