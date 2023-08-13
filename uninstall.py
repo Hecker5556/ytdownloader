@@ -4,7 +4,7 @@ if sys.platform.startswith('win'):
 
     if not pyuac.isUserAdmin():
         pyuac.runAsAdmin()
-
+    filepath = None
     pathtoexe = "ytdownload.exe"
     for root, dirs, files in os.walk('.'):
         if pathtoexe in files:
@@ -26,7 +26,7 @@ if sys.platform.startswith('win'):
             path_value, _ = winreg.QueryValueEx(regkey, 'Path')
             print(path_value)
             if directory in path_value:
-                path_value.replace(';'+directory, '')
+                path_value = path_value.replace(';'+directory, '')
                 winreg.SetValueEx(regkey, 'Path', 0, winreg.REG_EXPAND_SZ, path_value)
                 print('removed from PATH')
             else:

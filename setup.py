@@ -65,6 +65,8 @@ def main():
         with open(profilefile, 'a') as f1:
             f1.write(f'\nexport PATH="$PATH:{filepath}"\n')
         print(f'usage: {filepath + "/ytdownload.py"} to execute')
+        with open('usagecommand.txt', 'w') as f1:
+            f1.write(f'{filepath + "/ytdownload.py"}')
         subprocess.run(f'chmod +x {filepath + "/ytdownload.py"}'.split())
         
        

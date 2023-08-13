@@ -9,7 +9,7 @@
 #### 3. if you haven't already, [install python](https://www.python.org/)
 ### this will download requirements, build exe and add to path (admin needed which will be asked almost on launch)
     python setup.py build
-### on linux this will add absolute path to PATH and chmod the file, it will print out what u need to use to execute
+### on linux this will add absolute path to PATH and chmod the file, it will print out what u need to use to execute, it will also write to usagecommand.txt incase u forgor
 #### If you built and added to path, you can replace 'python ytdownload.py' with just `ytdownload`, make sure to open a new terminal
 #### if you don't want to build, just run
     pip install -r requirements.txt
