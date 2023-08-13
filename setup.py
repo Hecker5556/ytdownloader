@@ -61,9 +61,10 @@ def main():
             f1.write('#!/usr/bin/env python\n' + script)
         homedirectory = os.path.expanduser('~')
         profilefile = os.path.join(homedirectory, '.bashrc')
+        print(os.path.abspath(profilefile))
         with open(profilefile, 'a') as f1:
             f1.write(f'\nexport PATH="$PATH:{filepath}"\n')
-        print(filepath)
+        print(f'usage: {filepath + "/ytdownload.py"} to execute')
         subprocess.run(f'chmod +x {filepath + "/ytdownload.py"}'.split())
         
        
