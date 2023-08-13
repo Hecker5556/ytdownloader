@@ -48,7 +48,8 @@ def main():
     elif sys.platform.startswith('linux'):
         #recursion issue with linux cx_freeze
         subprocess.run('pip install pyinstaller==5.1'.split())
-        subprocess.run('pyinstaller --noconfirm --name=ytdownloader --console ytdownload.py'.split())
+        subprocess.run('pyi-makespec ytdownload.py'.split())
+        subprocess.run('pyinstaller ytdownload.spec'.split())
         pathtoexe = "ytdownload.exe"
         for root, dirs, files in os.walk('.'):
             if pathtoexe in files:
