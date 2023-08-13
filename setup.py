@@ -61,7 +61,7 @@ def main():
             f1.write('#!/usr/bin/env python\n' + script)
         print(f'chmod +x {pathtopy}')
         print(f'youre gonna be able to execute using ./{pathtopy}')
-        subprocess.run(f'chmod +x {pathtopy}')
+        subprocess.run(f'chmod +x {pathtopy}'.split())
         
        
     input('press enter to exit')
