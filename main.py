@@ -592,7 +592,10 @@ class ytdownload:
                 result = asyncio.run(normaldownload(audio.get('url'), filename=f"merged.{audio.get('mimeType').split('/')[1].split(';')[0] if audio.get('mimeType').split('/')[1].split(';')[0] == 'webm' else 'mp3'}"))
                 if mp3audio:
                     subprocess.run(f"ffmpeg -v quiet -i merged.{audio.get('mimeType').split('/')[1].split(';')[0]} merged.mp3")
-                    result[1] = 'mp3'
+                    name = result[0]
+                    extens = 'mp3'
+                    del result
+                    result = name, extens
             else:
                 result = manifestdownload(manifestvideo, audioonly=True, verbose=verbose)
         if result:
