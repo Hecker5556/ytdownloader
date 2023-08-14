@@ -507,9 +507,13 @@ class ytdownload:
                         logging.debug(f'deciphering n param for itag: {video.get("itag")}')
                         video['url'] = nparam(video.get('url'), thirdfunction=functions.get('thirdfunction'), thirdfunctionname=functions.get('thirdfunctionname'))
                     for key, value in links['unmergednosig'].items():
-                        if 'audio' in value.get('mimeType') and value.get('mimeType').split(';')[0].split('/')[1] in video.get('mimeType'):
-                            audio = value
-                            break
+                            if not audioonly:
+                                if value.get('mimeType').split(';')[0].split('/')[1] in video.get('mimeType'):
+                                    audio = value
+                                    break
+                            else:
+                                audio = value
+                                break
                     if not audio:
                         #different codec
                         for key, value in links['unmergednosig'].items():
