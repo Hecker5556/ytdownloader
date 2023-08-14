@@ -646,7 +646,7 @@ class ytdownload:
                             'codec': audio.get('mimeType').split('; ')[1],
                             'audioQuality': audio.get('audioQuality'),
                             'filesize': str(round(os.path.getsize(filename)/(1024*1024),2)),
-                            'bitrate':str(int(json.loads(subprocess.check_output(thecommand))['streams'][0].get('bit_rate'))/1000) +' kbs'}
+                            'bitrate':str(int(json.loads(subprocess.check_output(thecommand))['format'].get('bit_rate'))/1000) +' kbs'}
                 if audioonly and manifest:
                     return {'filename': filename,
                             'codec': manifestvideo.get('CODECS').split(',')[1],
