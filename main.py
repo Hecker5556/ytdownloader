@@ -494,6 +494,8 @@ class ytdownload:
                     audio['url'] = decrypt(audio.get('signatureCipher'), functions, verbose=verbose, needlogin=needlogin)
                 elif links['unmergednosig'] != {} and not manifest and not premerged:
                     logging.info('downloading unmerged no signatured')
+                    logging.debug('gonna decipher n param')
+                    functions = getfunctions(basejslink, verbose=verbose)
                     if not audioonly:
                         for key, value in links['unmergednosig'].items():
                             if codec and codec in value.get('mimeType'):
@@ -502,8 +504,6 @@ class ytdownload:
                             elif not codec and 'video' in value.get('mimeType'):
                                 video = value
                                 break
-                        logging.debug('gonna decipher n param')
-                        functions = getfunctions(basejslink, verbose=verbose)
                         logging.debug(f'deciphering n param for itag: {video.get("itag")}')
                         video['url'] = nparam(video.get('url'), thirdfunction=functions.get('thirdfunction'), thirdfunctionname=functions.get('thirdfunctionname'))
                     for key, value in links['unmergednosig'].items():
