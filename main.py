@@ -512,8 +512,9 @@ class ytdownload:
                                     audio = value
                                     break
                             else:
-                                audio = value
-                                break
+                                if 'audio' in value.get('mimeType'):
+                                    audio = value
+                                    break
                     if not audio:
                         #different codec
                         for key, value in links['unmergednosig'].items():
