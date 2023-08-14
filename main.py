@@ -471,9 +471,14 @@ class ytdownload:
                                 video = value
                                 break
                     for key, value in links['unmergedsig'].items():
-                        if 'audio' in value.get('mimeType') and value.get('mimeType').split(';')[0].split('/')[1] in video.get('mimeType'):
-                            audio = value
-                            break
+                        if 'audio' in value.get('mimeType'):
+                            if not audioonly:
+                                if value.get('mimeType').split(';')[0].split('/')[1] in video.get('mimeType'):
+                                    audio = value
+                                    break
+                            else:
+                                audio = value
+                                break
                     if not audio:
                         #different codec
                         for key, value in links['unmergedsig'].items():
