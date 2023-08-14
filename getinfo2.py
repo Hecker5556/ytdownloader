@@ -3,8 +3,7 @@ from pprint import pformat
 from extractmanifest import extractmanifest
 from decipher import decrypt
 from getjsfunctions import getfunctions
-from dotenv import load_dotenv
-load_dotenv()
+import env
 class someerror(Exception):
     def __init__(self, *args: object) -> None:
         super().__init__(*args)
@@ -65,28 +64,28 @@ def getinfo(link: str, verbose: bool = False, manifest: bool = False, premerged:
         logging.debug(webjson['playabilityStatus'].get('status'))
         if webjson['playabilityStatus'].get('status') == 'LOGIN_REQUIRED':
             logging.info('age restricted video, using login details...')
-            if not os.path.exists('.env'):
-                logging.info('create a .env file and place needed details there, more information in the github docs')
+            if not os.path.exists('env.py'):
+                logging.info('create a env.py file and place needed details there or run createenv.py, more information in the github docs')
                 from sys import exit
                 exit()
-            with open('.env', 'r') as f1:
+            with open('env.py', 'r') as f1:
                 if len(f1.readlines()) != 7:
                     logging.info('not enough needed information, refer to documents')
                     from sys import exit
                     exit()
             logcookies = {
-                'SID': os.getenv('SID'),
-                'HSID': os.getenv('HSID'),
-                'SSID': os.getenv('SSID'),
-                'APISID': os.getenv('APISID'),
-                'SAPISID': os.getenv('SAPISID'),
+                'SID': env.SID,
+                'HSID': env.HSID,
+                'SSID': env.SSID,
+                'APISID': env.APISID,
+                'SAPISID': env.SAPISID,
             }
 
             logheaders = {
                 'authority': 'www.youtube.com',
                 'accept': '*/*',
                 'accept-language': 'en-US,en;q=0.7',
-                'authorization': os.getenv('authorization'),
+                'authorization': env.authorization,
                 'content-type': 'application/json',
                 'origin': 'https://www.youtube.com',
                 'sec-ch-ua': '"Not/A)Brand";v="99", "Brave";v="115", "Chromium";v="115"',
@@ -105,7 +104,7 @@ def getinfo(link: str, verbose: bool = False, manifest: bool = False, premerged:
             }
 
             logparams = {
-                'key': os.getenv('apikey'),
+                'key': env.apikey,
                 'prettyPrint': 'false',
             }
 
@@ -240,7 +239,7 @@ def getinfo(link: str, verbose: bool = False, manifest: bool = False, premerged:
         if 'IOS' in key:
             json_data['context']['client']['deviceModel'] = value.get('deviceModel')
         params = {
-        'key': value.get('apikey') if not needlogin else os.getenv('apikey'),
+        'key': value.get('apikey') if not needlogin else env.apikey,
         'prettyPrint': 'false',
         }
         response = requests.post(

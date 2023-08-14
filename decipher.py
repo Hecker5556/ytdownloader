@@ -27,21 +27,20 @@ def decrypt(sigurl: str, functions: dict, verbose: bool = False, needlogin: bool
     }
     if verbose:
         if needlogin:
-            from dotenv import load_dotenv
-            load_dotenv()
+            import env
             logcookies = {
-                'SID': os.getenv('SID'),
-                'HSID': os.getenv('HSID'),
-                'SSID': os.getenv('SSID'),
-                'APISID': os.getenv('APISID'),
-                'SAPISID': os.getenv('SAPISID'),
+                'SID': env.SID,
+                'HSID': env.HSID,
+                'SSID': env.SSID,
+                'APISID': env.APISID,
+                'SAPISID': env.SAPISID,
             }
 
             logheaders = {
                 'authority': 'www.youtube.com',
                 'accept': '*/*',
                 'accept-language': 'en-US,en;q=0.7',
-                'authorization': os.getenv('authorization'),
+                'authorization': env.authorization,
                 'content-type': 'application/json',
                 'origin': 'https://www.youtube.com',
                 'sec-ch-ua': '"Not/A)Brand";v="99", "Brave";v="115", "Chromium";v="115"',

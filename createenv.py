@@ -1,4 +1,4 @@
-with open('.env', 'w') as f1:
+with open('py.env', 'w') as f1:
     sid = str(input('SID: '))
     f1.write(f'SID = "{sid}"\n')
     hsid = str(input('HSID: '))
