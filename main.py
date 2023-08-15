@@ -32,13 +32,11 @@ class ytdownload:
         if doesloopexist:
             logging.debug('Loop exists')
             task1 = loop.create_task(normaldownload(videourl, filename=f'tempvideo.{videoextension}'))
-            while not task1.done():
-                pass
+            loop.run_until_complete(task1)
             video = task1.result()
             logging.debug('downloaded video')
             task2 = loop.create_task(normaldownload(audiourl, filename=f'tempaudio.{audioextension}'))
-            while not task2.done():
-                pass
+            loop.run_until_complete(task2)
             audio = task2.result()
             logging.debug('downloaded audio')
         else:
