@@ -38,9 +38,11 @@ class ytdownload:
             logging.debug('Loop exists')
             task1 = loop.create_task(normaldownload(videourl, filename=f'tempvideo.{videoextension}'))
             task1.add_done_callback(donev)
+            loop.run_until_complete(task1)
             logging.debug('downloaded video')
             task2 = loop.create_task(normaldownload(audiourl, filename=f'tempaudio.{audioextension}'))
             task2.add_done_callback(donea)
+            loop.run_until_complete(task2)
             logging.debug('downloaded audio')
         else:
             logging.debug('Loop doesnt exist')
