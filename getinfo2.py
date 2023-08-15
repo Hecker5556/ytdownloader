@@ -7,7 +7,7 @@ import env
 class someerror(Exception):
     def __init__(self, *args: object) -> None:
         super().__init__(*args)
-def getinfo(link: str, verbose: bool = False, manifest: bool = False, premerged: bool = False, nodownload: bool = False):
+async def getinfo(link: str, verbose: bool = False, manifest: bool = False, premerged: bool = False, nodownload: bool = False):
     log_level = logging.DEBUG if verbose else logging.INFO
     logging.basicConfig(level=log_level, format="%(levelname)s: %(message)s")
     logging.info('downloading video info')
