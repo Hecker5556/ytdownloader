@@ -70,7 +70,6 @@ def main():
         subprocess.run(f'chmod +x {filepath + "/ytdownload.py"}'.split())
         
        
-    input('press enter to exit')
 if __name__ == '__main__':
     import subprocess, sys, os
     if sys.platform.startswith('win'):
