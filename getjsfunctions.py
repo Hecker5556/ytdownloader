@@ -1,5 +1,5 @@
 import requests, logging, re, json
-def getfunctions(link: str, verbose: bool = False):
+async def getfunctions(link: str, verbose: bool = False):
     log_level = logging.DEBUG if verbose else logging.INFO
     logging.basicConfig(level=log_level, format="%(levelname)s: %(message)s")
     basejs = requests.get(link)

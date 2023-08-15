@@ -1,7 +1,7 @@
 import argparse
 from main import ytdownload
 from datetime import datetime
-import traceback, os
+import traceback, os, asyncio
 parser = argparse.ArgumentParser(description='download youtube videos in different ways, file sizes')
 parser.add_argument("link", help="link to a youtube video")
 parser.add_argument("--verbose", "-v", action='store_true', help='print out connections, information, checks if signatre deciphering is working')
@@ -17,11 +17,11 @@ args = parser.parse_args()
 
 start = datetime.now()
 try:
-    result = ytdownload.download(link=args.link, verbose=args.verbose, 
+    result = asyncio.run(ytdownload.download(link=args.link, verbose=args.verbose, 
                                 manifest=args.manifest, maxsize=args.maxsize,
                                 premerged=args.premerged, codec=args.codec,
                                 nodownload=args.no_download, priority=args.priority, 
-                                audioonly=args.audio_only, mp3audio=args.mp3_audio)
+                                audioonly=args.audio_only, mp3audio=args.mp3_audio))
 except KeyboardInterrupt:
     print('cleaning up')
     for i in os.listdir():

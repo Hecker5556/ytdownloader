@@ -10,6 +10,7 @@ from prettytable import PrettyTable
 from extractmanifest import extractmanifest
 import requests
 import json
+import aiohttp
 
 class ytdownload:
     
@@ -18,42 +19,20 @@ class ytdownload:
     class someerror(Exception):
         def __init__(self, *args: object) -> None:
             super().__init__(*args)
-    def merge(videourl: str, audiourl: str, mimetypevideo: str, mimetypeaudio: str, verbose: bool = False):
+    async def merge(videourl: str, audiourl: str, mimetypevideo: str, mimetypeaudio: str, verbose: bool = False):
         log_level = logging.DEBUG if verbose else logging.INFO
         logging.basicConfig(level=log_level, format="%(levelname)s: %(message)s")
         videoextension = mimetypevideo.split('/')[1].split(';')[0]
         audioextension = mimetypeaudio.split('/')[1].split(';')[0]
 
-        try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError:
-            loop = None
-
-        if loop and loop.is_running():
-            logging.debug('loop running')
-            from threading import Thread
-            from queue import Queue
-            videoqueue = Queue()
-            thr = Thread(target=normaldownload, args=(videourl, f'tempvideo.{videoextension}', videoqueue))
-            thr.start()
-            thr.join()
-            video = videoqueue.get()
-            audioqueue = Queue()
-            thr2 = Thread(target=normaldownload, args=(audiourl, f'tempaudio.{audioextension}', audioqueue))
-            thr2.start()
-            thr2.join()
-            audio = audioqueue.get()
-
-        else:
-            logging.debug('Loop doesnt exist')
-            video = asyncio.run(normaldownload(videourl, filename=f'tempvideo.{videoextension}'))
-            logging.debug(f'downloaded video, {video}')
-            audio = asyncio.run(normaldownload(audiourl, filename=f'tempaudio.{audioextension}'))
-            logging.debug(f'downloaded audio, {audio}')
+        video = await normaldownload(videourl, filename=f'tempvideo.{videoextension}')
+        logging.debug(f'downloaded video, {video}')
+        audio = await normaldownload(audiourl, filename=f'tempaudio.{audioextension}')
+        logging.debug(f'downloaded audio, {audio}')
         if video and audio:
             logging.info('successfully downloaded both, merging now')
             try:
-                result = subprocess.run(f'ffmpeg -i tempvideo.{videoextension} -i tempaudio.{audioextension} -v quiet -c:v copy {"-c:a copy " if videoextension == audioextension else ""} -map 0:v:0 -map 1:a:0 -y merged.{videoextension}'.split(), check=True)
+                result = await asyncio.create_subprocess_exec(f'ffmpeg -i tempvideo.{videoextension} -i tempaudio.{audioextension} -v quiet -c:v copy {"-c:a copy " if videoextension == audioextension else ""} -map 0:v:0 -map 1:a:0 -y merged.{videoextension}'.split(), check=True)
             except Exception as e:
                 print(e)
                 print(result.stdout)
@@ -90,7 +69,7 @@ class ytdownload:
         def __init__(self, *args: object) -> None:
             super().__init__(*args)
 
-    def download(link:str, verbose: bool = False, 
+    async def download(link:str, verbose: bool = False, 
                  manifest: bool = False, maxsize: int = None, 
                  premerged: bool = False, codec: str = None, 
                  nodownload: bool = False, priority: str = None, 
@@ -132,25 +111,30 @@ class ytdownload:
             raise ytdownload.invalidcodec(f"{codec} isnt a valid video codec, use one of these: ['vp9', 'avc1', 'av01']")
         log_level = logging.DEBUG if verbose else logging.INFO
         logging.basicConfig(level=log_level, format="%(levelname)s: %(message)s - linenumber: %(lineno)d")
-        links, otherinfo, basejslink, needlogin = getinfo(link, verbose=verbose, manifest=manifest, premerged=premerged, nodownload=nodownload)
+        links, otherinfo, basejslink, needlogin = await getinfo(link, verbose=verbose, manifest=manifest, premerged=premerged, nodownload=nodownload)
         if nodownload:
             logging.info('writing information into files')
 
             table = PrettyTable()
             table.field_names = ['itag', 'formattype', 'codec', 'size','resol', 'bitrate','fps', 'type', 'audioQuality', 'prot']
-            functions = getfunctions(basejslink, verbose=verbose)
+            functions = await getfunctions(basejslink, verbose=verbose)
             for key, value in links['mergedsig'].items():
                 if value.get('contentLength'):
                     continue
                 url = decrypt(value.get('signatureCipher'), functions=functions, verbose=verbose, needlogin=needlogin)
-                r = requests.get(url, stream=True)
-                contentLength = r.headers.get('content-length')
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(url) as r:
+
+                        contentLength = r.headers.get('content-length')
                 links['mergedsig'][key]['contentLength'] = contentLength
             for key, value in links['mergednosig'].items():
                 if value.get('contentLength'):
                     continue
-                r = requests.get(value.get('url'), stream=True)
-                links['mergednosig'][key]['contentLength'] = r.headers.get('content-length')
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(value.get('url')) as r:
+
+
+                        links['mergednosig'][key]['contentLength'] = r.headers.get('content-length')
             if links['manifest'].get('0'):
                 logging.info('extracting manifest info')
             links['manifest'] = extractmanifest(links['manifest']['0'], nodownload=nodownload, duration=float(links['unmergednosig']['0'].get('approxDurationMs'))/1000) if links['manifest'].get('0') else {}
@@ -302,7 +286,7 @@ class ytdownload:
                 if not audio:
                     raise ytdownload.noformatsavaliable(f'no formats avaliable that fit under filesize {maxsize}mb')
                 logging.debug('getting javascript functions')
-                functions = getfunctions(basejslink, verbose=verbose)
+                functions = await getfunctions(basejslink, verbose=verbose)
                 if not audioonly:
                     logging.debug(f'deciphering itag: {video.get("itag")}')
                     video['url'] = decrypt(video.get('signatureCipher'), functions, verbose=verbose, needlogin=needlogin)
@@ -406,7 +390,7 @@ class ytdownload:
                 if not audio:
                     raise ytdownload.noformatsavaliable(f'no formats avaliable that fit under filesize {maxsize}')
                 logging.debug('deciphering n param')
-                functions = getfunctions(basejslink, verbose=verbose)
+                functions = await getfunctions(basejslink, verbose=verbose)
                 if not audioonly:
                     video['url'] = nparam(video.get('url'), functions.get('thirdfunction'), functions.get('thirdfunctionname'))
                 audio['url'] = nparam(audio.get('url'), functions.get('thirdfunction'), functions.get('thirdfunctionname'))
@@ -491,7 +475,7 @@ class ytdownload:
                                 audio = value
                                 break
                     logging.debug('getting javascript functions')
-                    functions = getfunctions(basejslink, verbose=verbose)
+                    functions = await getfunctions(basejslink, verbose=verbose)
                     if not audioonly:
                         logging.debug(f'deciphering itag: {video.get("itag")}')
                         video['url'] = decrypt(video.get('signatureCipher'), functions, verbose=verbose, needlogin=needlogin)
@@ -500,7 +484,7 @@ class ytdownload:
                 elif links['unmergednosig'] != {} and not manifest and not premerged:
                     logging.info('downloading unmerged no signatured')
                     logging.debug('gonna decipher n param')
-                    functions = getfunctions(basejslink, verbose=verbose)
+                    functions = await getfunctions(basejslink, verbose=verbose)
                     if not audioonly:
                         for key, value in links['unmergednosig'].items():
                             if codec and codec in value.get('mimeType'):
@@ -548,7 +532,7 @@ class ytdownload:
                             video = links['mergedsig'][key]
                         break
                     logging.debug('getting javascript functions')
-                    functions = getfunctions(basejslink, verbose=verbose)
+                    functions = await getfunctions(basejslink, verbose=verbose)
                     logging.debug(f'deciphering itag: {video.get("itag")}')
                     video['url'] = decrypt(video.get('signatureCipher'), functions, verbose=verbose, needlogin=needlogin)
                 else:
@@ -578,26 +562,15 @@ class ytdownload:
 
 
         if not manifest and not premerged and not audioonly:
-            result = ytdownload.merge(video.get('url'), audio.get('url'), video.get('mimeType'), audio.get('mimeType'), verbose=verbose)
+            result = await ytdownload.merge(video.get('url'), audio.get('url'), video.get('mimeType'), audio.get('mimeType'), verbose=verbose)
         elif premerged and not audioonly:
-            doesloopexist = None
-            try:
-                loop = asyncio.get_event_loop()
-                doesloopexist = True
-            except RuntimeError:
-                doesloopexist = False
-            if doesloopexist:
-                task = loop.create_task(normaldownload(video.get('url'), filename=f"merged.{video.get('mimeType').split('/')[1].split(';')[0]}"))
-                loop.run_until_complete(task)
-                result = task.result()
-            else:
-                result = asyncio.run(normaldownload(video.get('url'), filename=f"merged.{video.get('mimeType').split('/')[1].split(';')[0]}"))
+            result = await normaldownload(video.get('url'), filename=f"merged.{video.get('mimeType').split('/')[1].split(';')[0]}")
         elif manifest and not audioonly:
             logging.info(f'downloading manifest: {manifestvideo.get("BANDWIDTH")} {manifestvideo.get("RESOLUTION")} {manifestvideo.get("FILESIZE")}mb')
             result = manifestdownload(manifestvideo, verbose=verbose)
         elif audioonly:
             if not manifest:
-                result = asyncio.run(normaldownload(audio.get('url'), filename=f"merged.{audio.get('mimeType').split('/')[1].split(';')[0] if audio.get('mimeType').split('/')[1].split(';')[0] == 'webm' else 'mp3'}"))
+                result = await normaldownload(audio.get('url'), filename=f"merged.{audio.get('mimeType').split('/')[1].split(';')[0] if audio.get('mimeType').split('/')[1].split(';')[0] == 'webm' else 'mp3'}")
                 if mp3audio:
                     subprocess.run(f"ffmpeg -v quiet -i merged.{audio.get('mimeType').split('/')[1].split(';')[0]} merged.mp3")
                     name = result[0]
