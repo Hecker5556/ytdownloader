@@ -35,7 +35,6 @@ class ytdownload:
                 result = subprocess.run(f'ffmpeg -i tempvideo.{videoextension} -i tempaudio.{audioextension} -v quiet -c:v copy {"-c:a copy " if videoextension == audioextension else ""} -map 0:v:0 -map 1:a:0 -y merged.{videoextension}'.split(), check=True)
             except Exception as e:
                 print(e)
-                print(result.stdout)
                 return
             logging.debug(result.stdout)
             other = [x for x in os.listdir() if x.startswith('temp')]
@@ -572,7 +571,7 @@ class ytdownload:
             if not manifest:
                 result = await normaldownload(audio.get('url'), filename=f"merged.{audio.get('mimeType').split('/')[1].split(';')[0] if audio.get('mimeType').split('/')[1].split(';')[0] == 'webm' else 'mp3'}")
                 if mp3audio:
-                    subprocess.run(f"ffmpeg -v quiet -i merged.{audio.get('mimeType').split('/')[1].split(';')[0]} merged.mp3")
+                    subprocess.run(f"ffmpeg -v quiet -i merged.{audio.get('mimeType').split('/')[1].split(';')[0]} merged.mp3".split())
                     name = result[0]
                     extens = 'mp3'
                     del result
