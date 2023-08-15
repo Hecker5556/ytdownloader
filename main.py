@@ -504,11 +504,12 @@ class ytdownload:
                             elif not codec and 'video' in value.get('mimeType'):
                                 video = value
                                 break
-                        logging.debug(f'deciphering n param for itag: {video.get("itag")}')
+                        logging.debug(f'deciphering n param for video itag: {video.get("itag")}')
                         video['url'] = nparam(video.get('url'), thirdfunction=functions.get('thirdfunction'), thirdfunctionname=functions.get('thirdfunctionname'))
+                        logging.debug(video['url'])
                     for key, value in links['unmergednosig'].items():
                             if not audioonly:
-                                if value.get('mimeType').split(';')[0].split('/')[1] in video.get('mimeType'):
+                                if value.get('mimeType').split(';')[0].split('/')[1] in video.get('mimeType') and 'audio' in video.get('mimeType'):
                                     audio = value
                                     break
                             else:
@@ -523,6 +524,7 @@ class ytdownload:
                                 break
                     logging.debug(f'deciphering n param for itag: {audio.get("itag")}')
                     audio['url'] = nparam(audio.get('url'), thirdfunction=functions.get('thirdfunction'), thirdfunctionname=functions.get('thirdfunctionname'))
+                    logging.debug(audio['url'])
             elif premerged and not manifest and not audioonly:
                 if links['mergednosig'] != {}:
                     logging.info('downloading from merged not signatured')
