@@ -4,3 +4,4 @@ tqdm
 urllib3
 requests
 python-dotenv
+prettytable
