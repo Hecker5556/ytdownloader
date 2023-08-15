@@ -31,10 +31,19 @@ class ytdownload:
 
         if loop and loop.is_running():
             logging.debug('loop running')
-            future1 = asyncio.run_coroutine_threadsafe(normaldownload(videourl, filename=f'tempvideo.{videoextension}'), loop)
-            video = future1.result()
-            future2 = asyncio.run_coroutine_threadsafe(normaldownload(audiourl, filename=f'tempaudio.{audioextension}'), loop)
-            audio = future2.result()
+            from threading import Thread
+            from queue import Queue
+            videoqueue = Queue()
+            thr = Thread(target=normaldownload, args=(videourl, f'tempvideo.{videoextension}', videoqueue))
+            thr.start()
+            thr.join()
+            video = videoqueue.get()
+            audioqueue = Queue()
+            thr2 = Thread(target=normaldownload, args=(audiourl, f'tempaudio.{audioextension}', audioqueue))
+            thr2.start()
+            thr2.join()
+            audio = audioqueue.get()
+
         else:
             logging.debug('Loop doesnt exist')
             video = asyncio.run(normaldownload(videourl, filename=f'tempvideo.{videoextension}'))
