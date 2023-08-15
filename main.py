@@ -28,16 +28,19 @@ class ytdownload:
             doesloopexist = True
         except RuntimeError:
             doesloopexist = False
-        
+        def donev(fut):
+            nonlocal video
+            video = fut.result()
+        def donea(fut):
+            nonlocal audio
+            audio = fut.result()
         if doesloopexist:
             logging.debug('Loop exists')
             task1 = loop.create_task(normaldownload(videourl, filename=f'tempvideo.{videoextension}'))
-            loop.run_until_complete(task1)
-            video = task1.result()
+            task1.add_done_callback(donev)
             logging.debug('downloaded video')
             task2 = loop.create_task(normaldownload(audiourl, filename=f'tempaudio.{audioextension}'))
-            loop.run_until_complete(task2)
-            audio = task2.result()
+            task2.add_done_callback(donea)
             logging.debug('downloaded audio')
         else:
             logging.debug('Loop doesnt exist')
