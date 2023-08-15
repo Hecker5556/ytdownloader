@@ -32,10 +32,12 @@ class ytdownload:
         if doesloopexist:
             logging.debug('Loop exists')
             task1 = asyncio.create_task(normaldownload(videourl, filename=f'tempvideo.{videoextension}'))
-            video = task1.result()
+            task1result = loop.run_coroutine_threadsafe(task1, loop=loop).result()
+            video = task1result
             logging.debug('downloaded video')
             task2 = asyncio.create_task(normaldownload(audiourl, filename=f'tempaudio.{audioextension}'))
-            audio = task2.result()
+            task2result = loop.run_coroutine_threadsafe(task2, loop=loop).result()
+            audio = task2result
             logging.debug('downloaded audio')
         else:
             logging.debug('Loop doesnt exist')
