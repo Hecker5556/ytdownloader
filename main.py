@@ -10,6 +10,8 @@ from prettytable import PrettyTable
 from extractmanifest import extractmanifest
 import requests
 import json
+import nest_asyncio
+nest_asyncio.apply()
 class ytdownload:
     
     def __init__(self) -> None:
@@ -22,42 +24,15 @@ class ytdownload:
         logging.basicConfig(level=log_level, format="%(levelname)s: %(message)s")
         videoextension = mimetypevideo.split('/')[1].split(';')[0]
         audioextension = mimetypeaudio.split('/')[1].split(';')[0]
-        doesloopexist = None
-        try:
-            loop = asyncio.get_running_loop()
-            doesloopexist = True
-        except RuntimeError:
-            doesloopexist = False
-
-        if doesloopexist:
-            logging.debug('Loop exists')
-            task1 = asyncio.create_task(normaldownload(videourl, filename=f'tempvideo.{videoextension}'))
-            asyncio.create_task(asyncio.wait(task1))
-            while True:
-                try:
-                    video = task1.result()
-                    break
-                except asyncio.exceptions.InvalidStateError:
-                    pass
-
-            logging.debug('downloaded video')
-            task2 = asyncio.create_task(normaldownload(audiourl, filename=f'tempaudio.{audioextension}'))
-            asyncio.create_task(asyncio.wait(task2))
-            while True:
-                try:
-                    audio = task2.result()
-                    break
-                except asyncio.exceptions.InvalidStateError:
-                    pass
-            logging.debug('downloaded audio')
 
 
-        else:
-            logging.debug('Loop doesnt exist')
-            video = asyncio.run(normaldownload(videourl, filename=f'tempvideo.{videoextension}'))
-            logging.debug(f'downloaded video, {video}')
-            audio = asyncio.run(normaldownload(audiourl, filename=f'tempaudio.{audioextension}'))
-            logging.debug(f'downloaded audio, {audio}')
+
+
+        logging.debug('Loop doesnt exist')
+        video = asyncio.run(normaldownload(videourl, filename=f'tempvideo.{videoextension}'))
+        logging.debug(f'downloaded video, {video}')
+        audio = asyncio.run(normaldownload(audiourl, filename=f'tempaudio.{audioextension}'))
+        logging.debug(f'downloaded audio, {audio}')
         if video and audio:
             logging.info('successfully downloaded both, merging now')
             try:
