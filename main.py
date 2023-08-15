@@ -32,12 +32,12 @@ class ytdownload:
         if video and audio:
             logging.info('successfully downloaded both, merging now')
             try:
-                result = await asyncio.create_subprocess_exec(*(f'ffmpeg -i tempvideo.{videoextension} -i tempaudio.{audioextension} -v quiet -c:v copy {"-c:a copy " if videoextension == audioextension else ""} -map 0:v:0 -map 1:a:0 -y merged.{videoextension}'.split()))
+                thething = await asyncio.create_subprocess_exec(*(f'ffmpeg -i tempvideo.{videoextension} -i tempaudio.{audioextension} -v quiet -c:v copy {"-c:a copy " if videoextension == audioextension else ""} -map 0:v:0 -map 1:a:0 -y merged.{videoextension}'.split()))
             except Exception as e:
                 print(e)
-                print(result.stdout)
+                print(thething.stdout)
                 return
-            logging.debug(result.stdout)
+            logging.debug(thething.stdout)
             other = [x for x in os.listdir() if x.startswith('temp')]
             for i in [x for x in os.listdir() if x.startswith('funny') and x.endswith('.js')]:
                 logging.debug(f'removing file {i}')
