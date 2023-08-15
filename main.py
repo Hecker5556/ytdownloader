@@ -24,23 +24,24 @@ class ytdownload:
         videoextension = mimetypevideo.split('/')[1].split(';')[0]
         audioextension = mimetypeaudio.split('/')[1].split(';')[0]
 
-        try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError:
-            loop = None
+        # try:
+        #     loop = asyncio.get_event_loop()
+        # except RuntimeError:
+        #     loop = None
 
-        if loop and loop.is_running():
-            logging.debug('loop running')
-            task1 = asyncio.run_coroutine_threadsafe(normaldownload(videourl, filename=f'tempvideo.{videoextension}'), loop=loop)
-            video = task1.result()
-            task2 = asyncio.run_coroutine_threadsafe(normaldownload(audiourl, filename=f'tempaudio.{audioextension}'), loop=loop)
-            audio = task2.result()
-        else:
-            logging.debug('Loop doesnt exist')
-            video = asyncio.run(normaldownload(videourl, filename=f'tempvideo.{videoextension}'))
-            logging.debug(f'downloaded video, {video}')
-            audio = asyncio.run(normaldownload(audiourl, filename=f'tempaudio.{audioextension}'))
-            logging.debug(f'downloaded audio, {audio}')
+        # if loop and loop.is_running():
+        #     logging.debug('loop running')
+        #     task1 = asyncio.run_coroutine_threadsafe(normaldownload(videourl, filename=f'tempvideo.{videoextension}'), loop=loop)
+        #     loop.call_soon_threadsafe
+        #     video = task1.result()
+        #     task2 = asyncio.run_coroutine_threadsafe(normaldownload(audiourl, filename=f'tempaudio.{audioextension}'), loop=loop)
+        #     audio = task2.result()
+        # else:
+        logging.debug('Loop doesnt exist')
+        video = asyncio.run(normaldownload(videourl, filename=f'tempvideo.{videoextension}'))
+        logging.debug(f'downloaded video, {video}')
+        audio = asyncio.run(normaldownload(audiourl, filename=f'tempaudio.{audioextension}'))
+        logging.debug(f'downloaded audio, {audio}')
         if video and audio:
             logging.info('successfully downloaded both, merging now')
             try:
