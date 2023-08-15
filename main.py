@@ -28,22 +28,21 @@ class ytdownload:
             doesloopexist = True
         except RuntimeError:
             doesloopexist = False
-        def donev(fut):
-            nonlocal video
-            video = fut.result()
-        def donea(fut):
-            nonlocal audio
-            audio = fut.result()
+
         if doesloopexist:
             logging.debug('Loop exists')
-            task1 = loop.create_task(normaldownload(videourl, filename=f'tempvideo.{videoextension}'))
-            task1.add_done_callback(donev)
-            loop.run_until_complete(task1)
-            logging.debug('downloaded video')
-            task2 = loop.create_task(normaldownload(audiourl, filename=f'tempaudio.{audioextension}'))
-            task2.add_done_callback(donea)
-            loop.run_until_complete(task2)
-            logging.debug('downloaded audio')
+            # task1 = loop.create_task(normaldownload(videourl, filename=f'tempvideo.{videoextension}'))
+            # task1.add_done_callback(donev)
+            # loop.run_until_complete(task1)
+            # logging.debug('downloaded video')
+            # task2 = loop.create_task(normaldownload(audiourl, filename=f'tempaudio.{audioextension}'))
+            # task2.add_done_callback(donea)
+            # loop.run_until_complete(task2)
+            # logging.debug('downloaded audio')
+            task1 = asyncio.run_coroutine_threadsafe(normaldownload(videourl, filename=f'tempvideo.{videoextension}'), loop=loop)
+            video = task1.result()
+            task2 = asyncio.run_coroutine_threadsafe(normaldownload(audiourl, filename=f'tempaudio.{audioextension}'), loop=loop)
+            audio = task2.result()
         else:
             logging.debug('Loop doesnt exist')
             video = asyncio.run(normaldownload(videourl, filename=f'tempvideo.{videoextension}'))
