@@ -1,5 +1,6 @@
 def main():
-    subprocess.run('pip install -r requirements.txt'.split())
+    import os, subprocess
+    subprocess.run(f'pip install -r {os.path.join(os.path.dirname(os.path.dirname(__file__)), "ytdownloader/requirements.txt")}'.split())
     
 
     if sys.platform.startswith('win'):
