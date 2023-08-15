@@ -64,15 +64,7 @@ def getinfo(link: str, verbose: bool = False, manifest: bool = False, premerged:
         logging.debug(webjson['playabilityStatus'].get('status'))
         if webjson['playabilityStatus'].get('status') == 'LOGIN_REQUIRED':
             logging.info('age restricted video, using login details...')
-            if not os.path.exists('env.py'):
-                logging.info('create a env.py file and place needed details there or run createenv.py, more information in the github docs')
-                from sys import exit
-                exit()
-            with open('env.py', 'r') as f1:
-                if len(f1.readlines()) != 7:
-                    logging.info('not enough needed information, refer to documents')
-                    from sys import exit
-                    exit()
+            
             logcookies = {
                 'SID': env.SID,
                 'HSID': env.HSID,
