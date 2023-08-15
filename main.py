@@ -181,7 +181,7 @@ class ytdownload:
                 table.add_row(newlist)
             print(table)
 
-            return 'complete'
+            return table
         video = None
         audio = None
         videoandaudio = None

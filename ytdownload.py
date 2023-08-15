@@ -38,10 +38,10 @@ except Exception as e:
         if i.startswith('temp') or i.startswith('merged'):
             os.remove(i)
 try:
-    if result != 'complete':
+    if isinstance(result, dict):
         print(" ".join(([": ".join((str(key), str(value))) for key, value in result.items()])))
     else:
-        print(result)
+        pass
 except:
     pass
 finish = datetime.now()
