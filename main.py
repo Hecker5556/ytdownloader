@@ -129,9 +129,9 @@ class ytdownload:
                 match = re.findall(pattern3, link)
                 if not match:
                         raise ytdownload.invalidlink(f"{link} is not a valid link, a normal link looks like https://youtu.be/id or https://youtube.com/watch?v=id")
-        codecs = ['vp9', 'avc1', 'av01', None]
+        codecs = ['vp9', 'avc1', 'av01', 'vp09', None]
         if codec not in codecs:
-            raise ytdownload.invalidcodec(f"{codec} isnt a valid video codec, use one of these: ['vp9', 'avc1', 'av01']")
+            raise ytdownload.invalidcodec(f"{codec} isnt a valid video codec, use one of these: ['vp9', 'avc1', 'vp09, 'av01']")
         log_level = logging.DEBUG if verbose else logging.INFO
         logging.basicConfig(level=log_level, format="%(levelname)s: %(message)s - linenumber: %(lineno)d")
         links, otherinfo, basejslink, needlogin = await getinfo(link, verbose=verbose, manifest=manifest, premerged=premerged, nodownload=nodownload)
