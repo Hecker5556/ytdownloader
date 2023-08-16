@@ -73,13 +73,27 @@ class ytdownload:
                  premerged: bool = False, codec: str = None, 
                  nodownload: bool = False, priority: str = None, 
                  audioonly: bool = False, mp3audio: bool = False):
-        """link: str - youtube video link
-        verbose: bool = False - whether to log connections, additional info
-        manifest: bool = False - extract manifest info, download manifest chunks and merge into a video
-        maxsize: int = None - maximum size of output in MB
-        premerged: bool = False - whether to download premerged videos
-        codec: str = None - one from ['vp9', 'avc1', 'av01', None], downloads a video with that specifc codec
-        nodownload: bool = False - whether to only get information from the video and output to links.json, urls arent deciphered"""
+        """# [github page](https://github.com/Hecker5556/ytdownloader.git)
+        ## link: str 
+        youtube video link
+        ## verbose: bool = False
+        whether to log connections, additional info
+        ## manifest: bool = False
+        extract manifest info, download manifest chunks and merge into a video
+        ## maxsize: int = None
+        maximum size of output in MB
+        ## premerged: bool = False
+        whether to download premerged videos
+        ## codec: str = None
+        one from ['vp9', 'avc1', 'av01', None], downloads a video with that specifc codec
+        ## nodownload: bool = False
+        whether to only get information from the video and output to links.json, urls arent deciphered
+        ## priority: str = None
+        when finding best format under max size, which quality to prioritize (video, audio, none) video by default
+        ## audioonly: bool = False
+        whether to download only the audio
+        ## mp3audio: bool = False
+        whether to download mp3 format audio only (automatically makes audioonly True)"""
         if premerged and manifest:
             raise ytdownload.theydontmix(f"manifests arent premerged")
         if priority:

@@ -3,6 +3,4 @@ aiofiles
 tqdm
 urllib3
 requests
-python-dotenv
 prettytable
-nest-asyncio
