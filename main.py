@@ -189,7 +189,11 @@ class ytdownload:
                     elif 'video' in value.get('mimeType') and not codec and not audioonly:
                         videoids.append(key)
                     elif 'audio' in value.get('mimeType'):
-                        audioids.append(key)
+                        if not mp3audio:
+                            audioids.append(key)
+                        else:
+                            if 'mp4a' in value.get('mimeType'):
+                                audioids.append(key)
                 if priority == 'video' and not audioonly:
                     for videof in videoids:
                         for audiof in audioids:
@@ -300,7 +304,11 @@ class ytdownload:
                     elif 'video' in value.get('mimeType') and not codec and not audioonly:
                         videoids.append(key)
                     elif 'audio' in value.get('mimeType'):
-                        audioids.append(key)
+                        if not mp3audio:
+                            audioids.append(key)
+                        else:
+                            if 'mp4a' in value.get('mimeType'):
+                                audioids.append(key)
                 if priority == 'video' and not audioonly:
                     for videof in videoids:
                         for audiof in audioids:
@@ -465,8 +473,13 @@ class ytdownload:
                                     audio = value
                                     break
                             else:
-                                audio = value
-                                break
+                                if not mp3audio:
+                                    audio = value
+                                    break
+                                else:
+                                    if 'mp4a' in value.get('mimeType'):
+                                        audio = value
+                                        break
                     if not audio:
                         #different codec
                         for key, value in links['unmergedsig'].items():
@@ -502,8 +515,13 @@ class ytdownload:
                                     break
                             else:
                                 if 'audio' in value.get('mimeType'):
-                                    audio = value
-                                    break
+                                    if not mp3audio:
+                                        audio = value
+                                        break
+                                    else:
+                                        if 'mp4a' in value.get('mimeType'):
+                                            audio = value
+                                            break
                     if not audio:
                         #different codec
                         for key, value in links['unmergednosig'].items():
@@ -571,11 +589,7 @@ class ytdownload:
             if not manifest:
                 result = await normaldownload(audio.get('url'), filename=f"merged.{audio.get('mimeType').split('/')[1].split(';')[0] if audio.get('mimeType').split('/')[1].split(';')[0] == 'webm' else 'mp3'}")
                 if mp3audio:
-                    subprocess.run(f"ffmpeg -v quiet -i merged.{audio.get('mimeType').split('/')[1].split(';')[0]} merged.mp3".split())
-                    name = result[0]
-                    extens = 'mp3'
-                    del result
-                    result = name, extens
+                    result = await normaldownload(audio.get('url'), filename='merged.mp3')
             else:
                 result = manifestdownload(manifestvideo, audioonly=True, verbose=verbose)
         if result:
@@ -606,7 +620,10 @@ class ytdownload:
                     'width': video.get('width'),
                     'height': video.get('height'),
                     'mimeType': video.get('mimeType'),
-                    'filesize': str(round(os.path.getsize(filename)/(1024*1024),2))}
+                    'filesize': str(round(os.path.getsize(filename)/(1024*1024),2)),
+                    'bitrate': video.get('bitrate'),
+                    'fps': video.get('fps'),
+                    'audioquality': video.get('audioQuality')}
             elif not manifest and audio and not audioonly:
                 maincommand = 'ffprobe -v quiet -print_format json -show_format -show_streams -i '.split()
                 maincommand.append(f"{filename}")
@@ -617,13 +634,18 @@ class ytdownload:
                     'video codec': video.get('mimeType'),
                     'original audio codec': audio.get('mimeType'),
                     'audio codec': json.loads(subprocess.check_output(maincommand))['streams'][1]['codec_name'],
-                    'filesize': str(round(os.path.getsize(filename)/(1024*1024),2))}
+                    'filesize': str(round(os.path.getsize(filename)/(1024*1024),2)),
+                    'videobitrate': video.get('bitrate'),
+                    'audiobitrate': audio.get('bitrate'),
+                    'fps': video.get('fps')}
             elif manifest and not audioonly:
                 return {'filename': filename,
                         'width': manifestvideo.get('RESOLUTION').split('x')[0],
                         'height': manifestvideo.get('RESOLUTION').split('x')[1],
                         'codec': manifestvideo.get('CODECS'),
-                        'filesize': str(round(os.path.getsize(filename)/(1024*1024),2))}
+                        'filesize': str(round(os.path.getsize(filename)/(1024*1024),2)),
+                        'bitrate': manifestvideo.get('BANDWIDTH'),
+                        'fps': manifestvideo.get('FRAME_RATE')}
             else:
                 if audioonly and not manifest:
                     thecommand = 'ffprobe -v quiet -print_format json -show_format -show_streams -i'.split()
