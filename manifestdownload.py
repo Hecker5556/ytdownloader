@@ -12,7 +12,7 @@ def manifestdownload(manifest: dict, verbose: bool = False, audioonly: bool = Fa
     logging.info('downloading chunked manifest videos...')
     extension = 'mp4' if not audioonly and 'avc1' in manifest.get('CODECS') else 'webm' if not audioonly and 'vp09' in manifest.get('CODECS') else 'mp3'
     try:
-        subprocess.check_output(f'ffmpeg {"-i "+manifest.get("URL") if not audioonly else ""} -i {manifest.get("AUDIOLINK")} -v quiet -c copy merged.{extension}'.split())
+        subprocess.check_output(f'ffmpeg {"-i "+manifest.get("URL") if not audioonly else ""} -i {manifest.get("AUDIOLINK")} -v quiet -c:v copy merged.{extension}'.split())
     except Exception as e:
         traceback.print_exc()
     return f'merged.{extension}', extension
