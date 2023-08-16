@@ -73,27 +73,37 @@ class ytdownload:
                  premerged: bool = False, codec: str = None, 
                  nodownload: bool = False, priority: str = None, 
                  audioonly: bool = False, mp3audio: bool = False):
-        """# [github page](https://github.com/Hecker5556/ytdownloader.git)
-        ## link: str 
-        youtube video link
-        ## verbose: bool = False
-        whether to log connections, additional info
-        ## manifest: bool = False
-        extract manifest info, download manifest chunks and merge into a video
-        ## maxsize: int = None
-        maximum size of output in MB
-        ## premerged: bool = False
-        whether to download premerged videos
-        ## codec: str = None
-        one from ['vp9', 'avc1', 'av01', None], downloads a video with that specifc codec
-        ## nodownload: bool = False
-        whether to only get information from the video and output to links.json, urls arent deciphered
-        ## priority: str = None
-        when finding best format under max size, which quality to prioritize (video, audio, none) video by default
-        ## audioonly: bool = False
-        whether to download only the audio
-        ## mp3audio: bool = False
-        whether to download mp3 format audio only (automatically makes audioonly True)"""
+        """
+        Download YouTube videos and extract information.
+        
+        [GitHub Page](https://github.com/Hecker5556/ytdownloader.git)
+        
+        Arguments:
+            link (str): YouTube video link.
+            
+            verbose (bool, optional): Whether to log connections and additional info. Default is False.
+            
+            manifest (bool, optional): Extract manifest info, download manifest chunks, and merge into a video.
+            Default is False.
+            
+            maxsize (int, optional): Maximum size of output in MB. Default is None.
+            
+            premerged (bool, optional): Whether to download premerged videos. Default is False.
+            
+            codec (str, optional): One of ['vp9', 'avc1', 'av01', None].
+            Downloads a video with the specific codec. Default is None.
+            
+            nodownload (bool, optional): Whether to only get information from the video and output to links.json.
+            URLs aren't deciphered. Default is False.
+            
+            priority (str, optional): When finding the best format under max size, prioritize 'video', 'audio', or 'none'.
+            Default is 'video'.
+            
+            audioonly (bool, optional): Download only the audio. Default is False.
+            
+            mp3audio (bool, optional): Download audio in MP3 format. Automatically sets audioonly to True.
+            Default is False.
+        """
         if premerged and manifest:
             raise ytdownload.theydontmix(f"manifests arent premerged")
         if priority:
