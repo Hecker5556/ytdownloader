@@ -42,6 +42,16 @@ options:
 
   --mp3-audio, -mp3     when downloading audio only, whether to convert it to mp3
   ```
+  ## python usage
+    import sys, asyncio
+    if 'ytdownloader' not in sys.path:
+      sys.path.append('path/to/ytdownloader')
+    from ytdownloader.main import ytdownload
+    result = asyncio.run(ytdownload.download(link))
+
+    #in async function
+    async def main():
+      result = await ytdownload.download(link)
   ## age restricted videos
   ### if you want to download age restricted videos/videos only your account can see, you'll need to follow these instructions:
   ### 1. open developers tab on a browser (ctrl+shift+i)
