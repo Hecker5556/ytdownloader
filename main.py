@@ -663,10 +663,13 @@ class ytdownload:
                     'audiobitrate': audio.get('bitrate'),
                     'fps': video.get('fps')}
             elif manifest and not audioonly:
+                maincommand = 'ffprobe -v quiet -print_format json -show_format -show_streams -i '.split()
+                maincommand.append(f"{filename}")
                 return {'filename': filename,
                         'width': manifestvideo.get('RESOLUTION').split('x')[0],
                         'height': manifestvideo.get('RESOLUTION').split('x')[1],
                         'codec': manifestvideo.get('CODECS'),
+                        'audiocodec': json.loads(subprocess.check_output(maincommand))['streams'][1]['codec_name'],
                         'filesize': str(round(os.path.getsize(filename)/(1024*1024),2)),
                         'bitrate': manifestvideo.get('BANDWIDTH'),
                         'fps': manifestvideo.get('FRAME-RATE')}
@@ -681,8 +684,11 @@ class ytdownload:
                             'filesize': str(round(os.path.getsize(filename)/(1024*1024),2)),
                             'bitrate':str(int(json.loads(subprocess.check_output(thecommand))['format'].get('bit_rate'))/1000) +' kbs'}
                 if audioonly and manifest:
+                    maincommand = 'ffprobe -v quiet -print_format json -show_format -show_streams -i '.split()
+                    maincommand.append(f"{filename}")
                     return {'filename': filename,
                             'codec': manifestvideo.get('CODECS').split(',')[1],
+                            'actualcodec': json.loads(subprocess.check_output(maincommand))['streams'][1]['codec_name'],
                             'filesize': str(round(os.path.getsize(filename)/(1024*1024),2)),
                             'bitrate': str(int(json.loads(subprocess.run(f'ffprobe -v quiet -print_format json -show_format -show_streams -i {filename}'.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True).stdout)['streams'].get('bit_rate'))/1000) +' kbs'}
 
