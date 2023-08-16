@@ -669,7 +669,7 @@ class ytdownload:
                         'codec': manifestvideo.get('CODECS'),
                         'filesize': str(round(os.path.getsize(filename)/(1024*1024),2)),
                         'bitrate': manifestvideo.get('BANDWIDTH'),
-                        'fps': manifestvideo.get('FRAME_RATE')}
+                        'fps': manifestvideo.get('FRAME-RATE')}
             else:
                 if audioonly and not manifest:
                     thecommand = 'ffprobe -v quiet -print_format json -show_format -show_streams -i'.split()
@@ -686,40 +686,3 @@ class ytdownload:
                             'filesize': str(round(os.path.getsize(filename)/(1024*1024),2)),
                             'bitrate': str(int(json.loads(subprocess.run(f'ffprobe -v quiet -print_format json -show_format -show_streams -i {filename}'.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True).stdout)['streams'].get('bit_rate'))/1000) +' kbs'}
 
-
-# start = datetime.now()
-# try:
-#     a = ytdownload.download(link='https://youtu.be/ce17Ui_eqJ4', verbose=False, maxsize=25, manifest=False, nodownload = False, codec='avc1', premerged=True)
-#     if a != 'complete':
-#         print(" ".join(([": ".join((str(key), str(value))) for key, value in a.items()])))
-
-# except KeyboardInterrupt:
-#     listtoremove = ['funny.js', 'funny2.js']
-#     other = [x for x in os.listdir() if x.startswith('temp')]
-#     for i in listtoremove:
-#         logging.info(f'cleaning up, deleting {i}')
-#         os.remove(i)
-#     for i in other:
-#         os.remove(i)
-#         logging.info(f'cleaning up, deleting {i}')
-#     sys.exit()
-# except Exception as e:
-#     traceback.print_exc()
-#     listtoremove = [x for x in os.listdir() if x.endswith('.js')]
-#     other = [x for x in os.listdir() if x.startswith('temp')]
-#     for i in listtoremove:
-#         logging.info(f'cleaning up, deleting {i}')
-#         os.remove(i)
-#     for i in other:
-#         os.remove(i)
-#         logging.info(f'cleaning up, deleting {i}')
-#     sys.exit()
-# finish = datetime.now()
-# difference = finish - start
-# print(f'{difference.seconds//60:02}:{difference.seconds%60:02}')
-# with open('allinks.txt', 'w') as f1:
-#     f1.write(pformat(a, sort_dicts=False))
-# pprint(a['unmergedsig'], sort_dicts=False, indent=4)
-# for key, value in a['manifest'].items():
-#     if '1080' in value.get('RESOLUTION'):
-#         print(manifestdownload(value))
