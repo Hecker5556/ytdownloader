@@ -670,6 +670,7 @@ class ytdownload:
                         'height': manifestvideo.get('RESOLUTION').split('x')[1],
                         'codec': manifestvideo.get('CODECS'),
                         'audiocodec': json.loads(subprocess.check_output(maincommand))['streams'][1]['codec_name'],
+                        'audiobitrate': json.loads(subprocess.check_output(maincommand))['streams'][1]['bitrate'],
                         'filesize': str(round(os.path.getsize(filename)/(1024*1024),2)),
                         'bitrate': manifestvideo.get('BANDWIDTH'),
                         'fps': manifestvideo.get('FRAME-RATE')}
