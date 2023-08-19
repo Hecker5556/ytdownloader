@@ -516,7 +516,7 @@ class ytdownload:
                     if not video:
                         raise ytdownload.noformatsavaliable(f"Idk i couldnt find the formats u want")
 
-                if links['unmergedsig'] != {}:
+                if links['unmergedsig'] != {} and not video:
                     for key, value in links['unmergedsig'].items():
                         if int(value.get('itag')) == itag:
                             if 'video' in value.get('mimeType'):
