@@ -47,7 +47,7 @@ class ytdownload:
                 print(e)
                 return
             logging.debug(result.stdout)
-            other = [x for x in os.listdir() if x.startswith('temp')]
+            other = [x for x in os.listdir() if x.startswith('tempvideo') or x.startswith('tempaudio')]
             for i in [x for x in os.listdir() if x.startswith('funny') and x.endswith('.js')]:
                 logging.debug(f'removing file {i}')
                 os.remove(i)
