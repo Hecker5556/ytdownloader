@@ -9,7 +9,6 @@ try:
 
 except ModuleNotFoundError:
     sys.path.append(os.path.dirname(__file__))
-    print(sys.path)
     from getinfo2 import getinfo
     from manifestdownload import manifestdownload
     from normaldownload import normaldownload
