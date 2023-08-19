@@ -13,6 +13,8 @@ parser.add_argument('--no-download', '-nd', action='store_true',help='doesnt dow
 parser.add_argument('--priority', '-pr', type=str, help='prioritize video/audio quality. accepted argument: ["video", "audio", "none"], if none, will pair similar qualities')
 parser.add_argument('--audio-only', '-a', action='store_true', help='whether to only extract audio and return in mp3 format')
 parser.add_argument('--mp3-audio', '-mp3',action='store_true', help='when downloading audio only, whether to convert it to mp3')
+parser.add_argument('--itag', '-i', type=int, help='download that specific itag and automatically pair audio to it')
+parser.add_argument('--file-name', "-f", type=str, help='set output filename')
 args = parser.parse_args()
 
 start = datetime.now()
@@ -21,7 +23,8 @@ try:
                                 manifest=args.manifest, maxsize=args.maxsize,
                                 premerged=args.premerged, codec=args.codec,
                                 nodownload=args.no_download, priority=args.priority, 
-                                audioonly=args.audio_only, mp3audio=args.mp3_audio))
+                                audioonly=args.audio_only, mp3audio=args.mp3_audio,
+                                itag=args.itag, filename=args.file_name))
 except KeyboardInterrupt:
     print('cleaning up')
     for i in os.listdir():

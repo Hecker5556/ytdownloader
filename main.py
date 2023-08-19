@@ -1,13 +1,20 @@
-import subprocess, os, logging, re
-from getinfo2 import getinfo
-from manifestdownload import manifestdownload
-from normaldownload import normaldownload
+import subprocess, os, logging, re, sys
+while True:
+    try:
+        from getinfo2 import getinfo
+        from manifestdownload import manifestdownload
+        from normaldownload import normaldownload
+        from decipher import decrypt, nparam
+        from getjsfunctions import getfunctions
+        from extractmanifest import extractmanifest
+        break
+    except ModuleNotFoundError:
+        print(f'adding {os.path.abspath(os.path.dirname(__file__))} to sys path')
+        sys.path.append(os.path.abspath(os.path.dirname(__file__)))
+        continue
 import asyncio, traceback
 from datetime import datetime
-from decipher import decrypt, nparam
-from getjsfunctions import getfunctions
 from prettytable import PrettyTable
-from extractmanifest import extractmanifest
 import requests
 import json
 import aiohttp
@@ -72,7 +79,8 @@ class ytdownload:
                  manifest: bool = False, maxsize: int = None, 
                  premerged: bool = False, codec: str = None, 
                  nodownload: bool = False, priority: str = None, 
-                 audioonly: bool = False, mp3audio: bool = False):
+                 audioonly: bool = False, mp3audio: bool = False,
+                 itag: int = None, filename: str = None):
         """
         Download YouTube videos and extract information.
         
@@ -103,6 +111,10 @@ class ytdownload:
             
             mp3audio (bool, optional): Download audio in MP3 format. Automatically sets audioonly to True.
             Default is False.
+
+            itag (int, optional): Download specific itag
+
+            filename (str, optional): set output filename
         """
         if premerged and manifest:
             raise ytdownload.theydontmix(f"manifests arent premerged")
@@ -196,8 +208,9 @@ class ytdownload:
             return table
         video = None
         audio = None
+        manifestvideo = None
         videoandaudio = None
-        if maxsize:
+        if maxsize and not itag:
             videoids = []
             audioids = []
             # if manifest:
@@ -480,7 +493,78 @@ class ytdownload:
 
         
         else:
-            if not premerged and not manifest:
+            if itag:
+                if itag in [17, 18, 22]:
+                    premerged=True
+                    for key, value in links['mergednosig'].items():
+                        if value.get('itag') == itag:
+                            video = value
+                            logging.info(f'found video with itag {itag}')
+                            break
+                    if not video:
+                        for key, value in links['mergedsig'].items():
+                            if value.get('itag') == itag:
+                                logging.info(f'found signatured video with itag {itag}')
+                                video = value
+                                break
+                        if video:
+                            functions = await getfunctions(basejslink, verbose=verbose)
+                            video['url'] = decrypt(video.get('signatureCipher'), functions, verbose=verbose, needlogin=needlogin)
+                    if not video:
+                        raise ytdownload.noformatsavaliable(f"Idk i couldnt find the formats u want")
+
+                if links['unmergedsig'] != {}:
+                    for key, value in links['unmergedsig'].items():
+                        if int(value.get('itag')) == itag:
+                            video = value
+                            logging.info('found video with itag')
+                            break
+                    if video:
+                        for key, value in links['unmergedsig'].items():
+                            if 'audio' in value.get('mimeType'):
+                                audio = value
+                                break
+                        logging.info(f'pairing itag {itag}({video.get("itag")} with audio itag {audio.get("itag")})')
+                        logging.debug('getting functions')
+                        functions = await getfunctions(basejslink, verbose=verbose)
+                        video['url'] = decrypt(video.get('signatureCipher'), functions, verbose=verbose, needlogin=needlogin)
+                        audio['url'] = decrypt(audio.get('signatureCipher'), functions, verbose=verbose, needlogin=needlogin)
+                        logging.debug('got decrypted')
+                if links['unmergednosig'] != {} and not video and not audio:
+                    for key, value in links['unmergednosig'].items():
+                        if int(value.get('itag')) == itag:
+                            logging.info(f'found unmerged no sig video with itag {itag}')
+                            video = value
+                            break
+                    if video:
+                        for key, value in links['unmergednosig'].items():
+                            if 'audio' in value.get('mimeType'):
+                                audio = value
+                                break
+                        logging.info(f'paring itag {itag}({video.get("itag")} with audio itag {audio.get("itag")})')
+                        logging.debug('getting functions')
+                        functions = await getfunctions(basejslink, verbose=verbose)
+                        video['url'] = nparam(video.get('url'), thirdfunction=functions.get('thirdfunction'), thirdfunctionname=functions.get('thirdfunctionname'))
+                        audio['url'] = nparam(audio.get('url'),thirdfunction=functions.get('thirdfunction'), thirdfunctionname=functions.get('thirdfunctionname'))
+                        logging.debug('got decrypted')
+                if links['manifest'] != {} and not video:
+                    logging.debug('extracting manifest info')
+                    links['manifest'] = extractmanifest(links['manifest']['0'], nodownload=nodownload, duration=float(links['unmergednosig']['0'].get('approxDurationMs'))/1000)
+                    for key, value in links['manifest'].items():
+                        if value.get('URL').split('/itag/')[1].split('/')[0] == str(itag):
+                            logging.info(f'found manifest with itag {itag}')
+                            manifestvideo = value
+                            manifest = True
+                            break
+                if not manifestvideo and not video:
+                    raise ytdownload.noformatsavaliable(f'couldnt find itag {itag}')
+                
+                
+
+                
+            
+            
+            elif not premerged and not manifest:
                 if links['unmergedsig'] != {}:
                     for key, value in links['unmergedsig'].items():
                         if not audioonly:
@@ -616,8 +700,12 @@ class ytdownload:
                     result = await normaldownload(audio.get('url'), filename='merged.mp3')
             else:
                 result = manifestdownload(manifestvideo, audioonly=True, verbose=verbose)
-        if result:
+        if result and not filename:
             filename = "".join([x for x in otherinfo.get('title')+f'.{result[1]}' if x not in "\/:*?<>|"])
+        elif result and filename:
+            filename = filename + f'.{result[1]}'
+            filename = "".join([x for x in filename if x not in '\/:*?<>|'])
+        if result:
             try:
                 os.rename(result[0], filename)
             except FileExistsError:
@@ -670,7 +758,7 @@ class ytdownload:
                         'height': manifestvideo.get('RESOLUTION').split('x')[1],
                         'codec': manifestvideo.get('CODECS'),
                         'audiocodec': json.loads(subprocess.check_output(maincommand))['streams'][1]['codec_name'],
-                        'audiobitrate': json.loads(subprocess.check_output(maincommand))['streams'][1]['bitrate'],
+                        'audiobitrate': json.loads(subprocess.check_output(maincommand))['streams'][1]['bit_rate'],
                         'filesize': str(round(os.path.getsize(filename)/(1024*1024),2)),
                         'bitrate': manifestvideo.get('BANDWIDTH'),
                         'fps': manifestvideo.get('FRAME-RATE')}
@@ -692,4 +780,6 @@ class ytdownload:
                             'actualcodec': json.loads(subprocess.check_output(maincommand))['streams'][1]['codec_name'],
                             'filesize': str(round(os.path.getsize(filename)/(1024*1024),2)),
                             'bitrate': str(int(json.loads(subprocess.run(f'ffprobe -v quiet -print_format json -show_format -show_streams -i {filename}'.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True).stdout)['streams'].get('bit_rate'))/1000) +' kbs'}
+        else:
+            raise ytdownload.someerror(f"some error, no result")
 
