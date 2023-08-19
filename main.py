@@ -540,7 +540,7 @@ class ytdownload:
                     elif audio:
                         for key, value in links['unmergedsig'].items():
                             if 'video' in value.get('mimeType'):
-                                audio = value
+                                video = value
                                 break
                         logging.info(f'pairing itag {itag}({video.get("itag")} with audio itag {audio.get("itag")})')
                         logging.debug('getting functions')
@@ -570,10 +570,10 @@ class ytdownload:
                         logging.debug('got decrypted')
                     elif audio:
                         for key, value in links['unmergednosig'].items():
-                            if 'audio' in value.get('mimeType'):
-                                audio = value
+                            if 'video' in value.get('mimeType'):
+                                video = value
                                 break
-                        logging.info(f'paring itag {itag}({video.get("itag")} with audio itag {audio.get("itag")})')
+                        logging.info(f'pairing itag {itag}({video.get("itag")} with audio itag {audio.get("itag")})')
                         logging.debug('getting functions')
                         functions = await getfunctions(basejslink, verbose=verbose)
                         video['url'] = nparam(video.get('url'), thirdfunction=functions.get('thirdfunction'), thirdfunctionname=functions.get('thirdfunctionname'))
