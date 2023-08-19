@@ -519,8 +519,12 @@ class ytdownload:
                 if links['unmergedsig'] != {}:
                     for key, value in links['unmergedsig'].items():
                         if int(value.get('itag')) == itag:
-                            video = value
-                            logging.info('found video with itag')
+                            if 'video' in value.get('mimeType'):
+                                video = value
+                                logging.info('found video with itag')
+                            else:
+                                audio = value
+                                logging.info('found audio with itag')
                             break
                     if video:
                         for key, value in links['unmergedsig'].items():
@@ -533,13 +537,38 @@ class ytdownload:
                         video['url'] = decrypt(video.get('signatureCipher'), functions, verbose=verbose, needlogin=needlogin)
                         audio['url'] = decrypt(audio.get('signatureCipher'), functions, verbose=verbose, needlogin=needlogin)
                         logging.debug('got decrypted')
+                    elif audio:
+                        for key, value in links['unmergedsig'].items():
+                            if 'video' in value.get('mimeType'):
+                                audio = value
+                                break
+                        logging.info(f'pairing itag {itag}({video.get("itag")} with audio itag {audio.get("itag")})')
+                        logging.debug('getting functions')
+                        functions = await getfunctions(basejslink, verbose=verbose)
+                        video['url'] = decrypt(video.get('signatureCipher'), functions, verbose=verbose, needlogin=needlogin)
+                        audio['url'] = decrypt(audio.get('signatureCipher'), functions, verbose=verbose, needlogin=needlogin)
+                        logging.debug('got decrypted')
                 if links['unmergednosig'] != {} and not video and not audio:
                     for key, value in links['unmergednosig'].items():
                         if int(value.get('itag')) == itag:
                             logging.info(f'found unmerged no sig video with itag {itag}')
-                            video = value
+                            if 'video' in value.get('mimeType'):
+                                video = value
+                            else:
+                                audio = value
                             break
                     if video:
+                        for key, value in links['unmergednosig'].items():
+                            if 'audio' in value.get('mimeType'):
+                                audio = value
+                                break
+                        logging.info(f'paring itag {itag}({video.get("itag")} with audio itag {audio.get("itag")})')
+                        logging.debug('getting functions')
+                        functions = await getfunctions(basejslink, verbose=verbose)
+                        video['url'] = nparam(video.get('url'), thirdfunction=functions.get('thirdfunction'), thirdfunctionname=functions.get('thirdfunctionname'))
+                        audio['url'] = nparam(audio.get('url'),thirdfunction=functions.get('thirdfunction'), thirdfunctionname=functions.get('thirdfunctionname'))
+                        logging.debug('got decrypted')
+                    elif audio:
                         for key, value in links['unmergednosig'].items():
                             if 'audio' in value.get('mimeType'):
                                 audio = value
