@@ -1,9 +1,8 @@
-import requests, json, re, logging, os
+import requests, json, re, logging, os, sys
 from pprint import pformat
 from extractmanifest import extractmanifest
 from decipher import decrypt
 from getjsfunctions import getfunctions
-import env
 class someerror(Exception):
     def __init__(self, *args: object) -> None:
         super().__init__(*args)
@@ -64,6 +63,11 @@ async def getinfo(link: str, verbose: bool = False, manifest: bool = False, prem
         logging.debug(webjson['playabilityStatus'].get('status'))
         if webjson['playabilityStatus'].get('status') == 'LOGIN_REQUIRED':
             logging.info('age restricted video, using login details...')
+            try:
+                import env
+            except ModuleNotFoundError:
+                logging.info('do python createenv.py and read github docs')
+                sys.exit()
             
             logcookies = {
                 'SID': env.SID,

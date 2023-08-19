@@ -1,17 +1,21 @@
 import subprocess, os, logging, re, sys
-while True:
-    try:
-        from getinfo2 import getinfo
-        from manifestdownload import manifestdownload
-        from normaldownload import normaldownload
-        from decipher import decrypt, nparam
-        from getjsfunctions import getfunctions
-        from extractmanifest import extractmanifest
-        break
-    except ModuleNotFoundError:
-        print(f'adding {os.path.abspath(os.path.dirname(__file__))} to sys path')
-        sys.path.append(os.path.abspath(os.path.dirname(__file__)))
-        continue
+try:
+    from getinfo2 import getinfo
+    from manifestdownload import manifestdownload
+    from normaldownload import normaldownload
+    from decipher import decrypt, nparam
+    from getjsfunctions import getfunctions
+    from extractmanifest import extractmanifest
+
+except ModuleNotFoundError:
+    sys.path.append(os.path.dirname(__file__))
+    print(sys.path)
+    from getinfo2 import getinfo
+    from manifestdownload import manifestdownload
+    from normaldownload import normaldownload
+    from decipher import decrypt, nparam
+    from getjsfunctions import getfunctions
+    from extractmanifest import extractmanifest
 import asyncio, traceback
 from datetime import datetime
 from prettytable import PrettyTable
