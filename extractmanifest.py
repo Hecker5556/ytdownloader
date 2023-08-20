@@ -1,14 +1,19 @@
 import requests, logging, queue, threading, asyncio
-
+import aiohttp
+from yarl import URL
 from readmanifestduration import totalfilesize
-def getmanifesturls(url: str, resultqueue):
+async def getmanifesturls(url: str):
     if url == None:
         raise requests.ConnectionError(f"{url} url is NONE for some reason")
-    r = requests.get(url)
-    urls = r.text.split('\n')
-    urls = [i for i in urls if i.startswith('https')]
-    logging.debug('got urls')
-    resultqueue.put(urls)
+    async with aiohttp.ClientSession() as session:
+        async with session.get(URL(url, encoded=True)) as r:
+            logging.debug(r.status)
+    # r = requests.get(url)
+            urls = await r.text()
+            urls = urls.split('\n')
+            urls = [i for i in urls if i.startswith('https')]
+            logging.debug('got urls')
+            return urls
 
 def extractmanifest(link: str, nodownload: bool = False, duration: float = None):
         logging.basicConfig(level=logging.DEBUG, format="%(levelname)s: %(message)s")

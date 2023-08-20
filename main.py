@@ -724,19 +724,19 @@ class ytdownload:
             result = await normaldownload(video.get('url'), filename=f"merged.{video.get('mimeType').split('/')[1].split(';')[0]}")
         elif manifest and not audioonly:
             logging.info(f'downloading manifest: {manifestvideo.get("BANDWIDTH")} {manifestvideo.get("RESOLUTION")} {manifestvideo.get("FILESIZE")}mb')
-            result = manifestdownload(manifestvideo, verbose=verbose)
+            result = await manifestdownload(manifestvideo, verbose=verbose)
         elif audioonly:
             if not manifest:
                 result = await normaldownload(audio.get('url'), filename=f"merged.{audio.get('mimeType').split('/')[1].split(';')[0] if audio.get('mimeType').split('/')[1].split(';')[0] == 'webm' else 'mp3'}")
                 if mp3audio:
                     result = await normaldownload(audio.get('url'), filename='merged.mp3')
             else:
-                result = manifestdownload(manifestvideo, audioonly=True, verbose=verbose)
+                result = await manifestdownload(manifestvideo, audioonly=True, verbose=verbose)
         if result and not filename:
-            filename = "".join([x for x in otherinfo.get('title')+f'.{result[1]}' if x not in "\/:*?<>|"])
+            filename = "".join([x for x in otherinfo.get('title')+f'.{result[1]}' if x not in "\/:*?<>|()"])
         elif result and filename:
             filename = filename + f'.{result[1]}'
-            filename = "".join([x for x in filename if x not in '\/:*?<>|'])
+            filename = "".join([x for x in filename if x not in '\/:*?<>|()'])
         if result:
             try:
                 os.rename(result[0], filename)
@@ -809,9 +809,9 @@ class ytdownload:
                     maincommand.append(f"{filename}")
                     return {'filename': filename,
                             'codec': manifestvideo.get('CODECS').split(',')[1],
-                            'actualcodec': json.loads(subprocess.check_output(maincommand))['streams'][1]['codec_name'],
+                            'actualcodec': json.loads(subprocess.check_output(maincommand))['streams'][0]['codec_name'],
                             'filesize': str(round(os.path.getsize(filename)/(1024*1024),2)),
-                            'bitrate': str(int(json.loads(subprocess.run(f'ffprobe -v quiet -print_format json -show_format -show_streams -i {filename}'.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True).stdout)['streams'].get('bit_rate'))/1000) +' kbs'}
+                            'bitrate': json.loads(subprocess.check_output(maincommand))['streams'][0]['bit_rate']}
         else:
             raise ytdownload.someerror(f"some error, no result")
 
