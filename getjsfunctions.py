@@ -5,8 +5,9 @@ async def getfunctions(link: str, verbose: bool = False):
     basejs = requests.get(link)
     returna = basejs.text.find('return a.join("")') + 20
     closestfunction = basejs.text[returna-150:returna]
-    pattern = r'\b(\w+)\s*=\s*function\(a\)'
+    pattern = r'(\$?\w+)=function\(a\)'
     functionname = re.findall(pattern, closestfunction)
+    logging.debug(functionname)
     wholefunctionsig = closestfunction[closestfunction.find(functionname[0]):returna]
     temp2 = wholefunctionsig.split(';')
     temp3 = None
