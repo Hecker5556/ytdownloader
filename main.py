@@ -178,7 +178,8 @@ class ytdownload:
         links, otherinfo, basejslink, needlogin = await getinfo(link, verbose=verbose, manifest=manifest, premerged=premerged, nodownload=nodownload)
         if start or end:
             duration = int(links['unmergednosig']['0']['approxDurationMs'])/1000
-
+            begin = None
+            finish = None
             if start:
                 begin = datetime.strptime(start, "%H:%M:%S")
             if end:
