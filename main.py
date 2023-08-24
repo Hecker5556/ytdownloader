@@ -191,11 +191,11 @@ class ytdownload:
                 finish = finish.total_seconds()
 
             if begin and finish:
-                customduration = (finish-begin)
+                customduration = finish-begin
             elif begin:
-                customduration = (duration-begin)
-            elif finish:
                 customduration = duration-begin
+            elif finish:
+                customduration = duration-finish
             
             if customduration < 0:
                 raise ytdownload.invalidtimestamps(f"{start if start else 'no start'} and {end if end else 'no end'} are not valid timestamps! They returned a duration of under 0")
