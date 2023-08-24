@@ -1,4 +1,4 @@
-import requests, json, re, logging, os, sys
+import requests, json, re, logging, os, sys, aiohttp
 from pprint import pformat
 from extractmanifest import extractmanifest
 from decipher import decrypt
@@ -15,8 +15,8 @@ async def getinfo(link: str, verbose: bool = False, manifest: bool = False, prem
     pattern3 = r'(?:https?://)?(?:www\.)?youtube\.com/shorts/([\w-]+)(?:\?feature=[\w]+)?'
     videoid = re.findall(pattern1, link)[0] if re.findall(pattern1, link) else re.findall(pattern2, link)[0] if re.findall(pattern2, link) else re.findall(pattern3, link)[0]
     cookies = {
-        "PREF": "hl=en&tz=UTC",
-        "CONSENT": "YES+cb.20210328-17-p0.en+FX+789"
+        "PREF": "f4=4000000&f6=40000000&tz=Europe.Warsaw&f5=30000&f7=100",
+        "CONSENT": "PENDING+915"
     }
     headers = {
     'authority': 'www.youtube.com',
@@ -37,18 +37,17 @@ async def getinfo(link: str, verbose: bool = False, manifest: bool = False, prem
     'upgrade-insecure-requests': '1',
     'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36',
 }
-    
-    r = requests.get(f'https://youtube.com/watch?v={videoid}', cookies=cookies, headers=headers)
+    async with aiohttp.ClientSession() as session:
+        async with session.get(f'https://youtube.com/watch?v={videoid}', cookies=cookies, headers=headers) as r:
+            rtext = await r.text(encoding='utf-8')
     logging.info(f'https://youtube.com/watch?v={videoid}')
-    rtext = r.text
-    pattern = r'var ytInitialPlayerResponse = {.*?"nanos":\d+}}}}'
+    pattern = r'var ytInitialPlayerResponse = (.*?\"nanos\":(?:\d+)}}}})'
     matches = re.findall(pattern, rtext, re.DOTALL)
     try:
         matches: str = matches[0]
     except IndexError:
-        logging.info('var ytInitialPlayerResponse' in r.text)
+        logging.info('var ytInitialPlayerResponse' in rtext)
         raise someerror(f"idk")
-    matches = matches[29:]
     webjson = json.loads(matches)
 
     needlogin = False

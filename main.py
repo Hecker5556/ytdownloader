@@ -16,20 +16,23 @@ except ModuleNotFoundError:
     from getjsfunctions import getfunctions
     from extractmanifest import extractmanifest
 import asyncio, traceback
-from datetime import datetime
+from datetime import datetime, timedelta
 from prettytable import PrettyTable
 import requests
 import json
 import aiohttp
 
 class ytdownload:
-    
+    class invalidtimestamps(Exception):
+        def __init__(self, *args: object) -> None:
+            super().__init__(*args)
     def __init__(self) -> None:
         pass
     class someerror(Exception):
         def __init__(self, *args: object) -> None:
             super().__init__(*args)
-    async def merge(videourl: str, audiourl: str, mimetypevideo: str, mimetypeaudio: str, verbose: bool = False):
+    async def merge(videourl: str, audiourl: str, mimetypevideo: str, mimetypeaudio: str, 
+                    verbose: bool = False, start: str = None, end: str = None):
         log_level = logging.DEBUG if verbose else logging.INFO
         logging.basicConfig(level=log_level, format="%(levelname)s: %(message)s")
         videoextension = mimetypevideo.split('/')[1].split(';')[0]
@@ -42,7 +45,7 @@ class ytdownload:
         if video and audio:
             logging.info('successfully downloaded both, merging now')
             try:
-                result = subprocess.run(f'ffmpeg -i tempvideo.{videoextension} -i tempaudio.{audioextension} -v quiet -c:v copy {"-c:a copy " if videoextension == audioextension else ""} -map 0:v:0 -map 1:a:0 -y merged.{videoextension}'.split(), check=True)
+                result = subprocess.run(f'ffmpeg -i tempvideo.{videoextension} -i tempaudio.{audioextension} -v quiet -c:v copy {"-c:a copy " if videoextension == audioextension else ""} -map 0:v:0 -map 1:a:0 -y {"-ss "+start if start else ""} {"-to "+end if end else ""} merged.{videoextension}'.split(), check=True)
             except Exception as e:
                 print(e)
                 return
@@ -78,12 +81,17 @@ class ytdownload:
         def __init__(self, *args: object) -> None:
             super().__init__(*args)
 
+    class invalidformatting(Exception):
+        def __init__(self, *args: object) -> None:
+            super().__init__(*args)
+
     async def download(link:str, verbose: bool = False, 
                  manifest: bool = False, maxsize: int = None, 
                  premerged: bool = False, codec: str = None, 
                  nodownload: bool = False, priority: str = None, 
                  audioonly: bool = False, mp3audio: bool = False,
-                 itag: int = None, filename: str = None):
+                 itag: int = None, filename: str = None,
+                 start: str = None, end: str = None):
         """
         Download YouTube videos and extract information.
         
@@ -118,6 +126,10 @@ class ytdownload:
             itag (int, optional): Download specific itag
 
             filename (str, optional): set output filename
+
+            start (str, optional): set timestamp at which the video should start HH:MM:SS/MM:SS
+
+            end (str, optional): set timestamp at which video should end HH:MM:SS/MM:SS
         """
         if premerged and manifest:
             raise ytdownload.theydontmix(f"manifests arent premerged")
@@ -134,6 +146,20 @@ class ytdownload:
                 print('no need to specify other arguments if only getting info')
         if mp3audio and not audioonly:
             audioonly = True
+        def returnstringdate(timething: str):
+            if len(timething) == 5:
+                return datetime.strptime(timething, "%M:%S").strftime("%H:%M:%S")
+            elif len(timething) == 8:
+                return datetime.strptime(timething, "%H:%M:%S").strftime("%H:%M:%S")
+        if start:
+            if ':' not in start:
+                raise ytdownload.invalidformatting(f'{start} is not formatted properly do either HH:MM:SS or MM:SS')
+            start = returnstringdate(start)
+        if end:
+            if ':' not in end:
+                raise ytdownload.invalidformatting(f'{end} is not formatted properly do either HH:MM:SS or MM:SS')
+            end = returnstringdate(end)
+                
         pattern1 = r'(?:https?://)?(?:www\.)?youtube\.com/watch\?v=[\w-]+'
         pattern2 = r'(?:https?://)?(?:www\.)?youtu\.be/[\w-]+'
         pattern3 = r'(?:https?://)?(?:www\.)?youtube\.com/shorts/[\w-]+(?:\?feature=[\w]+)?'
@@ -150,6 +176,27 @@ class ytdownload:
         log_level = logging.DEBUG if verbose else logging.INFO
         logging.basicConfig(level=log_level, format="%(levelname)s: %(message)s - linenumber: %(lineno)d")
         links, otherinfo, basejslink, needlogin = await getinfo(link, verbose=verbose, manifest=manifest, premerged=premerged, nodownload=nodownload)
+        if start or end:
+            duration = int(links['unmergednosig']['0']['approxDurationMs'])/1000
+
+            if start:
+                begin = datetime.strptime(start, "%H:%M:%S")
+            if end:
+                finish = datetime.strptime(end, "%H:%M:%S")
+
+            if begin and finish:
+                customduration = (finish-begin).total_seconds()
+            elif begin:
+                customduration = (timedelta(seconds=duration)-begin).total_seconds()
+            elif finish:
+                customduration = (timedelta(seconds=duration)-finish).total_seconds()
+            
+            if customduration < 0:
+                raise ytdownload.invalidtimestamps(f"{start if start else 'no start'} and {end if end else 'no end'} are not valid timestamps! They returned a duration of under 0")
+            
+            thepercent = (duration-customduration) / duration
+            maxsize = round(maxsize * (1 + thepercent))
+            logging.info(f'new maxsize {maxsize}')
         if nodownload:
             logging.info('writing information into files')
 
@@ -719,24 +766,41 @@ class ytdownload:
 
 
         if not manifest and not premerged and not audioonly:
-            result = await ytdownload.merge(video.get('url'), audio.get('url'), video.get('mimeType'), audio.get('mimeType'), verbose=verbose)
+            result = await ytdownload.merge(video.get('url'), audio.get('url'), video.get('mimeType'), audio.get('mimeType'), verbose=verbose, start=start, end=end)
         elif premerged and not audioonly:
             result = await normaldownload(video.get('url'), filename=f"merged.{video.get('mimeType').split('/')[1].split(';')[0]}")
+            if start or end:
+                subprocess.run(f'ffmpeg -i {result[0]} {"-ss "+start if start else ""} {"-to "+end if end else ""} -c copy temp.{result[1]}'.split(), check=True)
+                os.remove(result[0])
+                os.rename(f'temp.{result[1]}', result[0])
+
         elif manifest and not audioonly:
             logging.info(f'downloading manifest: {manifestvideo.get("BANDWIDTH")} {manifestvideo.get("RESOLUTION")} {manifestvideo.get("FILESIZE")}mb')
             result = await manifestdownload(manifestvideo, verbose=verbose)
+            if start or end:
+                subprocess.run(f'ffmpeg -i {result[0]} {"-ss "+start if start else ""} {"-to "+end if end else ""} -c copy temp.{result[1]}'.split(), check=True)
+                os.remove(result[0])
+                os.rename(f'temp.{result[1]}', result[0])
         elif audioonly:
             if not manifest:
                 result = await normaldownload(audio.get('url'), filename=f"merged.{audio.get('mimeType').split('/')[1].split(';')[0] if audio.get('mimeType').split('/')[1].split(';')[0] == 'webm' else 'mp3'}")
                 if mp3audio:
                     result = await normaldownload(audio.get('url'), filename='merged.mp3')
+                if start or end:
+                    subprocess.run(f'ffmpeg -i {result[0]} {"-ss "+start if start else ""} {"-to "+end if end else ""} -c copy temp.{result[1]}'.split(), check=True)
+                    os.remove(result[0])
+                    os.rename(f'temp.{result[1]}', result[0])
             else:
                 result = await manifestdownload(manifestvideo, audioonly=True, verbose=verbose)
+                if start or end:
+                    subprocess.run(f'ffmpeg -i {result[0]} {"-ss "+start if start else ""} {"-to "+end if end else ""} -c copy temp.{result[1]}'.split(), check=True)
+                    os.remove(result[0])
+                    os.rename(f'temp.{result[1]}', result[0])
         if result and not filename:
-            filename = "".join([x for x in otherinfo.get('title')+f'.{result[1]}' if x not in "\/:*?<>|()"])
+            filename = "".join([x for x in otherinfo.get('title')+f'.{result[1]}' if x not in '"\\/:*?<>|()'])
         elif result and filename:
             filename = filename + f'.{result[1]}'
-            filename = "".join([x for x in filename if x not in '\/:*?<>|()'])
+            filename = "".join([x for x in filename if x not in '\\/:*?"<>|()'])
         if result:
             try:
                 os.rename(result[0], filename)
