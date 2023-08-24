@@ -177,20 +177,25 @@ class ytdownload:
         logging.basicConfig(level=log_level, format="%(levelname)s: %(message)s - linenumber: %(lineno)d")
         links, otherinfo, basejslink, needlogin = await getinfo(link, verbose=verbose, manifest=manifest, premerged=premerged, nodownload=nodownload)
         if start or end:
-            duration = int(links['unmergednosig']['0']['approxDurationMs'])/1000
+            duration = float(links['unmergednosig']['0']['approxDurationMs'])/1000
             begin = None
             finish = None
+            reference_time = datetime.strptime("00:00:00", "%H:%M:%S")
             if start:
                 begin = datetime.strptime(start, "%H:%M:%S")
+                begin = begin - reference_time
+                begin = begin.total_seconds()
             if end:
                 finish = datetime.strptime(end, "%H:%M:%S")
+                finish = finish - reference_time
+                finish = finish.total_seconds()
 
             if begin and finish:
-                customduration = (finish-begin).total_seconds()
+                customduration = (finish-begin)
             elif begin:
-                customduration = (timedelta(seconds=duration)-begin).total_seconds()
+                customduration = (duration-begin)
             elif finish:
-                customduration = (timedelta(seconds=duration)-finish).total_seconds()
+                customduration = duration-begin
             
             if customduration < 0:
                 raise ytdownload.invalidtimestamps(f"{start if start else 'no start'} and {end if end else 'no end'} are not valid timestamps! They returned a duration of under 0")
