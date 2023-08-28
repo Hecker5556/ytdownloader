@@ -1,8 +1,7 @@
 def main():
     import os, subprocess
-    subprocess.run(f'pip install -r {os.path.join(os.path.dirname(os.path.dirname(__file__)), "ytdownloader/requirements.txt")}'.split())
-    
-
+    requirements_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "ytdownloader", "requirements.txt")
+    subprocess.run(['pip', 'install', '-r', requirements_path])
     if sys.platform.startswith('win'):
         subprocess.run('pip install cx_Freeze'.split())
         from cx_Freeze import setup, Executable
@@ -82,7 +81,12 @@ if __name__ == '__main__':
         if not pyuac.isUserAdmin():
             pyuac.runAsAdmin()
         else:
-            main()
+            try:
+                sys.setrecursionlimit(5000)
+                main()
+            except Exception as e:
+                print(e)
+                input()
     elif sys.platform.startswith('linux'):
         if os.getuid() != 0:
             print('run as admin! (sudo)')
