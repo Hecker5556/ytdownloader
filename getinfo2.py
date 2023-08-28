@@ -153,6 +153,8 @@ async def getinfo(link: str, verbose: bool = False, manifest: bool = False, prem
     otherinfo: dict = {}
     for key, value in webjson["videoDetails"].items():
         otherinfo[key] = value
+    with open('videoinfo/otherinfo.json', 'w') as f1:
+        json.dump(otherinfo, f1)
     the = rtext.find("base.js")
     the2 = rtext[the-43:the+7]
     logging.debug(f'found base.js: https://youtube.com{the2}')
