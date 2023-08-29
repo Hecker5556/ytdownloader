@@ -9,11 +9,18 @@ async def getmanifesturls(url: str):
         async with session.get(URL(url, encoded=True)) as r:
             logging.debug(r.status)
     # r = requests.get(url)
-            urls = await r.text()
+            urls = await r.text(encoding='utf-8')
             urls = urls.split('\n')
-            urls = [i for i in urls if i.startswith('https')]
+            thelist = []
+            for url in urls:
+                if url.startswith('https'):
+                    thelist.append(url)
+                elif url.startswith('#EXT-X-MAP:URI="'):
+                    thelist.append(url.split('#EXT-X-MAP:URI="')[1].replace('"', ''))
+                    logging.debug(url.split('#EXT-X-MAP:URI="')[1].replace('"', ''))
             logging.debug('got urls')
-            return urls
+
+            return thelist
 
 def extractmanifest(link: str, nodownload: bool = False, duration: float = None):
         logging.basicConfig(level=logging.DEBUG, format="%(levelname)s: %(message)s")

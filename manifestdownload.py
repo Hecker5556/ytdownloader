@@ -21,29 +21,31 @@ async def manifestdownload(manifest: dict, verbose: bool = False, audioonly: boo
     audiourls = await getmanifesturls(manifest.get('AUDIOLINK'))
     logging.debug(f'\n\nAUDIOURLS LEN {len(audiourls)}\n\n')
     totalsize = float(manifest.get('FILESIZE'))*(1024*1024)
-    async def downloadmanifest(urls: list, filename: str, filetype: str):
+    async def downloadmanifest(urls: list[str], filename: str, filetype: str):
         async with aiofiles.open(filename, 'wb') as f1:
             async with aiohttp.ClientSession() as session:
                 for url in urls:
-                    async with session.get(URL(url, encoded=True)) as r:
-                        logging.debug(r.headers)
-                        progress = tqdm(total=None, unit='iB', unit_scale=True)
-                        while True:
-                            chunk = await r.content.read(1024)
-                            if not chunk:
-                                break
-                            await f1.write(chunk)
-                            progress.update(len(chunk))
-                        progress.close()
-                    logging.debug(f"DOWNLOADED SEGMENT TYPE {filetype}")
+                    try:
+                        async with session.get(URL(url, encoded=True)) as r:
+                            logging.debug(r.headers)
+                            progress = tqdm(total=None, unit='iB', unit_scale=True)
+                            while True:
+                                chunk = await r.content.read(1024)
+                                if not chunk:
+                                    break
+                                await f1.write(chunk)
+                                progress.update(len(chunk))
+                            progress.close()
+                        logging.debug(f"DOWNLOADED SEGMENT TYPE {filetype}")
+                    except Exception as e:
+                        logging.debug(str(e) + '\n\n' + url)
+                        raise TypeError
 
     if not audioonly:
 
-        logging.debug('downloading video')
-        await downloadmanifest(videourls, 'videoinfo/manvideo.ts', 'video')
-        logging.debug('downloading audio')
-        await downloadmanifest(audiourls, 'videoinfo/manaudio.ts', 'audio')
-
+        logging.debug('downloading ')
+        tasks = [downloadmanifest(videourls, 'videoinfo/manvideo.ts', 'video'), downloadmanifest(audiourls, 'videoinfo/manaudio.ts', 'audio')]
+        await asyncio.gather(*tasks)
 
     else:
         progress = tqdm(total=None, unit='iB', unit_scale=True)
