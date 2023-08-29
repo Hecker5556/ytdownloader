@@ -307,7 +307,15 @@ async def getinfo(link: str, verbose: bool = False, manifest: bool = False, prem
                 for i in range(len(value.get('streamingData').get('adaptiveFormats'))):
                     allinks['unmergednosig'][(str(i))] = value.get('streamingData').get('adaptiveFormats')[i]
                 sortdictbysize('unmergednosig')
-        sortdictbysize('unmergedsig')
+            elif value.get('streamingData').get('adaptiveFormats')[0].get('signatureCipher') and not info['0'].get('signatureCipher'):
+                logging.debug('found unmerged formats with signature ' + key)
+                for i in range(len(value.get('streamingData').get('adaptiveFormats'))):
+                    allinks['unmergedsig'][(str(i))] = value.get('streamingData').get('adaptiveFormats')[i]
+                sortdictbysize('unmergedsig')
+            elif info['0'].get('url'):
+                sortdictbysize('unmergednosig')
+            elif info['0'].get('signatureCipher'):
+                sortdictbysize('unmergedsig')
         # pprint(value.get('streamingData').get('formats') if value.get('streamingData').get('formats') else 'no premerged formats')
 
     # pprint(allinks, sort_dicts=False, indent=4)
