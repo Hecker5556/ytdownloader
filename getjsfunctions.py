@@ -4,7 +4,7 @@ async def getfunctions(link: str, verbose: bool = False):
     logging.basicConfig(level=log_level, format="%(levelname)s: %(message)s")
     basejs = requests.get(link)
     returna = basejs.text.find('return a.join("")') + 20
-    closestfunction = basejs.text[returna-180:returna]
+    closestfunction = basejs.text[returna-200:returna]
     pattern = r'(\$?\w+)=function\(a\)'
     functionname = re.findall(pattern, closestfunction)
     logging.debug(functionname)
