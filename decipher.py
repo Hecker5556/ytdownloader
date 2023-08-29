@@ -11,7 +11,7 @@ def decrypt(sigurl: str, functions: dict, verbose: bool = False, needlogin: bool
     sigurl = unquote(sigurl)
     signature = sigurl.split('https')[0].replace('s=', '').replace('&sp=sig&url=', '')
     url = unquote('https' + sigurl.split('https')[1])
-    a = f"\n\n{secondfunction}\n\n{wholefunctionsig}\nconsole.log({functionname[0]}('{signature}'))"
+    a = f"\n\n{secondfunction}\n\n{wholefunctionsig}\nconsole.log({functionname}('{signature}'))"
     if not os.path.exists('videoinfo'):
         os.mkdir('videoinfo')
     with open('videoinfo/funny.js', 'w') as f1:
