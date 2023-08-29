@@ -4,7 +4,7 @@ async def getfunctions(link: str, verbose: bool = False):
     logging.basicConfig(level=log_level, format="%(levelname)s: %(message)s")
     basejs = requests.get(link)
     returna = basejs.text.find('return a.join("")') + 20
-    closestfunction = basejs.text[returna-150:returna]
+    closestfunction = basejs.text[returna-180:returna]
     pattern = r'(\$?\w+)=function\(a\)'
     functionname = re.findall(pattern, closestfunction)
     logging.debug(functionname)
@@ -41,6 +41,7 @@ async def getfunctions(link: str, verbose: bool = False):
                     return real_nfunc
             return json.loads(search_function_code('.+?', group='name'))[int(idx)]
     thirdfunctionname = _extract_n_function_name(basejs.text)
+    logging.debug(thirdfunctionname)
 
     maybethirdfunction = basejs.text[basejs.text.find(f'{thirdfunctionname}=function(a)'):basejs.text.find(f'{thirdfunctionname}=function(a)')+6000]
     thirdfunction = maybethirdfunction[:maybethirdfunction.rfind('return b.join("")};')+20]
