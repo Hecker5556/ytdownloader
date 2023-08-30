@@ -3,7 +3,8 @@ from main import ytdownload
 from datetime import datetime
 import traceback, os, asyncio
 parser = argparse.ArgumentParser(description='download youtube videos in different ways, file sizes')
-parser.add_argument("link", help="link to a youtube video")
+parser.add_argument("link", nargs='?', help="link to a youtube video")
+parser.add_argument("--search", '-se', type=str, help='search for a youtube video with the input')
 parser.add_argument("--verbose", "-v", action='store_true', help='print out connections, information, checks if signatre deciphering is working')
 parser.add_argument('--manifest', '-m', action='store_true', help='whether to download videos from video manifest (ios)')
 parser.add_argument('--maxsize', '-s', type=int, help='maximum size in mb, may go over')
@@ -18,7 +19,25 @@ parser.add_argument('--file-name', "-f", type=str, help='set output filename')
 parser.add_argument('--start', '-st', type=str, help='at what timestamp should the video start? MM:SS or HH:MM:SS')
 parser.add_argument('--end', '-e', type=str, help='at what timestamp should the video end? MM:SS or HH:MM:SS')
 args = parser.parse_args()
-
+class provideinput(Exception):
+    def __init__(self, *args: object) -> None:
+        super().__init__(*args)
+if not args.link and not args.search:
+    raise provideinput(f'please provide input')
+class onlyoneinput(Exception):
+    def __init__(self, *args: object) -> None:
+        super().__init__(*args)
+if args.link and args.search:
+    raise onlyoneinput(f'only one input please')
+if args.search:
+    from ytsearch import main
+    results = asyncio.run(main(args.search))
+    for result in results.keys():
+        print(result)
+        user = str(input('is this what you were looking for? [y/n]: '))
+        if user.lower() == 'y':
+            args.link = results[result]
+            break
 start = datetime.now()
 try:
     result = asyncio.run(ytdownload.download(link=args.link, verbose=args.verbose, 
