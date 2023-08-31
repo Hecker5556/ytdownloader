@@ -234,8 +234,6 @@ class ytdownload:
                 os.mkdir('videoinfo')
             with open('videoinfo/links.json', 'w') as f1:
                 json.dump(links, f1)
-            with open('videoinfo/otherinfo.json', 'w') as f1:
-                json.dump(otherinfo, f1)
             # Sort the list by bitrate
             sorted_entries = sorted(all_entries, key=lambda x: round(int(x.get('contentLength'))/(1024*1024), 2) if x.get('contentLength') else float(x.get('FILESIZE')), reverse=False)
             for entrydata in sorted_entries:
@@ -268,11 +266,7 @@ class ytdownload:
         videoandaudio = None
         if maxsize and not itag:
             videoids = []
-            audioids = []
-            # if manifest:
-            #     for key, value in links['manifest']:
-            #         videoids.append(key)
-                    
+            audioids = []                  
             
             if links['unmergedsig'] != {} and not manifest and not premerged:
                 logging.info('downloading unmerged signatured')
@@ -789,9 +783,10 @@ class ytdownload:
                 os.rename(f'temp.{result[1]}', result[0])
         elif audioonly:
             if not manifest:
-                result = await normaldownload(audio.get('url'), filename=f"merged.{audio.get('mimeType').split('/')[1].split(';')[0] if audio.get('mimeType').split('/')[1].split(';')[0] == 'webm' else 'mp3'}")
                 if mp3audio:
                     result = await normaldownload(audio.get('url'), filename='merged.mp3')
+                else:
+                    result = await normaldownload(audio.get('url'), filename=f"merged.{audio.get('mimeType').split('/')[1].split(';')[0] if audio.get('mimeType').split('/')[1].split(';')[0] == 'webm' else 'mp3'}")
                 if start or end:
                     subprocess.run(f'ffmpeg -i {result[0]} {"-ss "+start if start else ""} {"-to "+end if end else ""} -c copy temp.{result[1]}'.split(), check=True)
                     os.remove(result[0])
@@ -868,7 +863,6 @@ class ytdownload:
                 if audioonly and not manifest:
                     thecommand = 'ffprobe -v quiet -print_format json -show_format -show_streams -i'.split()
                     thecommand.append(f"{filename}")
-                    logging.info(thecommand)
                     return {'filename': filename,
                             'codec': audio.get('mimeType').split('; ')[1],
                             'audioQuality': audio.get('audioQuality'),
