@@ -54,7 +54,7 @@ except KeyboardInterrupt:
             print(f'deleting {i}')
             os.remove(i)
     for i in os.listdir('videoinfo'):
-        if i.startswith('funny') and i.endswith('.js'):
+        if (i.startswith('funny') and i.endswith('.js')) or (i.startswith('segmenta') or i.startswith('segmentv')):
             print(f'deleting {i}')
             os.remove('videoinfo/'+i)
 except Exception as e:
@@ -62,6 +62,10 @@ except Exception as e:
     for i in os.listdir():
         if i.startswith('temp') or i.startswith('merged'):
             os.remove(i)
+    for i in os.listdir('videoinfo'):
+        if i.startswith('segmenta') or i.startswith('segmentv'):
+            print(f'deleting {i}')
+            os.remove('videoinfo/'+i)
 try:
     if isinstance(result, dict):
         print(" ".join(([": ".join((str(key), str(value))) for key, value in result.items()])))

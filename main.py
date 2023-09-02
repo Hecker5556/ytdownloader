@@ -781,6 +781,8 @@ class ytdownload:
                 subprocess.run(f'ffmpeg -i {result[0]} {"-ss "+start if start else ""} {"-to "+end if end else ""} -c copy temp.{result[1]}'.split(), check=True)
                 os.remove(result[0])
                 os.rename(f'temp.{result[1]}', result[0])
+            os.remove('videoinfo/manvideo.ts')
+            os.remove('videoinfo/manaudio.ts')
         elif audioonly:
             if not manifest:
                 if mp3audio:
@@ -799,6 +801,8 @@ class ytdownload:
                     subprocess.run(f'ffmpeg -i {result[0]} {"-ss "+start if start else ""} {"-to "+end if end else ""} -c copy temp.{result[1]}'.split(), check=True)
                     os.remove(result[0])
                     os.rename(f'temp.{result[1]}', result[0])
+                os.remove('videoinfo/manvideo.ts')
+                os.remove('videoinfo/manaudio.ts')
         if result and not filename:
             filename = "".join([x for x in otherinfo.get('title')+f'.{result[1]}' if x not in '"\\/:*?<>|()'])
         elif result and filename:
@@ -857,7 +861,7 @@ class ytdownload:
                         'height': manifestvideo.get('RESOLUTION').split('x')[1],
                         'codec': manifestvideo.get('CODECS'),
                         'audiocodec': json.loads(subprocess.check_output(maincommand))['streams'][1]['codec_name'],
-                        'audiobitrate': json.loads(subprocess.check_output(maincommand))['streams'][1].get('bit_rate', 'prolly a webm which cant get bitrate'),
+                        'audiobitrate': json.loads(subprocess.check_output(maincommand))['streams'][1].get('bit_rate', result[2]),
                         'filesize': str(round(os.path.getsize(filename)/(1024*1024),2)),
                         'bitrate': manifestvideo.get('BANDWIDTH'),
                         'fps': manifestvideo.get('FRAME-RATE')}
@@ -877,7 +881,8 @@ class ytdownload:
                             'codec': manifestvideo.get('CODECS').split(',')[1],
                             'actualcodec': json.loads(subprocess.check_output(maincommand))['streams'][0]['codec_name'],
                             'filesize': str(round(os.path.getsize(filename)/(1024*1024),2)),
-                            'bitrate': json.loads(subprocess.check_output(maincommand))['streams'][0]['bit_rate']}
+                            'bitrate': json.loads(subprocess.check_output(maincommand))['streams'][0]['bit_rate'],
+                            'audiobitrate': json.loads(subprocess.check_output(maincommand))['streams'][1].get('bit_rate', result[2]),}
         else:
             raise ytdownload.someerror(f"some error, no result")
 
