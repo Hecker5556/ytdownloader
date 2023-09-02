@@ -81,7 +81,7 @@ async def manifestdownload(manifest: dict, verbose: bool = False, audioonly: boo
     for i in os.listdir('videoinfo'):
         if i.startswith('segmenta') or i.startswith('segmentv'):
             os.remove('videoinfo/'+i)
-    audiobitrate = subprocess.run('ffprobe -v quiet -print_format json -show_format -show_streams -i manaudio.ts'.split(), capture_output=True, text=True)
+    audiobitrate = subprocess.run('ffprobe -v quiet -print_format json -show_format -show_streams -i videoinfo/manaudio.ts'.split(), capture_output=True, text=True)
     audiobitrate = json.loads(audiobitrate.stdout)
     audiobitrate = audiobitrate.get('streams')[0].get('bit_rate')
     try:
