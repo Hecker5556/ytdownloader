@@ -21,31 +21,36 @@ async def manifestdownload(manifest: dict, verbose: bool = False, audioonly: boo
     audiourls = await getmanifesturls(manifest.get('AUDIOLINK'))
     logging.debug(f'\n\nAUDIOURLS LEN {len(audiourls)}\n\n')
     totalsize = float(manifest.get('FILESIZE'))*(1024*1024)
-    async def downloadmanifest(url: str, filename: str, progress, threads):
+    async def downloadmanifest(url: str, filename: str, progress, threads: asyncio.Semaphore, session: aiohttp.ClientSession):
         async with threads:
             async with aiofiles.open(filename, 'wb') as f1:
-                async with aiohttp.ClientSession() as session:
+                while True:
                     try:
-                        async with session.get(URL(url, encoded=True)) as r:
+                        async with session.get(URL(url, encoded=True), timeout=2) as r:
                             while True:
                                 chunk = await r.content.read(1024)
                                 if not chunk:
                                     break
                                 await f1.write(chunk)
                                 progress.update(len(chunk))
+                            break
+                    except asyncio.exceptions.TimeoutError:
+                        await asyncio.sleep(2)
+                        continue
                     except Exception as e:
                         logging.debug(str(e) + '\n\n' + url)
                         raise TypeError
 
     if not audioonly:
-        threads = asyncio.Semaphore(6)
+        threads = asyncio.Semaphore(10)
         logging.debug('downloading ')
         progress = tqdm(total=totalsize, unit='iB', unit_scale=True)
-        videotasks = [downloadmanifest(url, f'videoinfo/segmentv{index}.ts', progress, threads) for index, url in enumerate(videourls)]
-        audiotasks = [downloadmanifest(url, f'videoinfo/segmenta{index}.ts', progress, threads) for index, url in enumerate(audiourls)]
-        await asyncio.gather(*videotasks)
-        await asyncio.gather(*audiotasks)
-        progress.close()
+        async with aiohttp.ClientSession() as session:
+            videotasks = [downloadmanifest(url, f'videoinfo/segmentv{index}.ts', progress, threads, session) for index, url in enumerate(videourls)]
+            audiotasks = [downloadmanifest(url, f'videoinfo/segmenta{index}.ts', progress, threads, session) for index, url in enumerate(audiourls)]
+            await asyncio.gather(*videotasks)
+            await asyncio.gather(*audiotasks)
+            progress.close()
         async with aiofiles.open(f'videoinfo/manvideo.ts', 'wb') as f1:
             files = []
             for file in os.listdir('videoinfo'):
