@@ -26,7 +26,7 @@ async def manifestdownload(manifest: dict, verbose: bool = False, audioonly: boo
             async with aiofiles.open(filename, 'wb') as f1:
                 while True:
                     try:
-                        async with session.get(URL(url, encoded=True), timeout=2) as r:
+                        async with session.get(URL(url, encoded=True), timeout=10) as r:
                             while True:
                                 chunk = await r.content.read(1024)
                                 if not chunk:
@@ -42,7 +42,7 @@ async def manifestdownload(manifest: dict, verbose: bool = False, audioonly: boo
                         raise TypeError
 
     if not audioonly:
-        threads = asyncio.Semaphore(10)
+        threads = asyncio.Semaphore(5)
         logging.debug('downloading ')
         progress = tqdm(total=totalsize, unit='iB', unit_scale=True)
         async with aiohttp.ClientSession() as session:
