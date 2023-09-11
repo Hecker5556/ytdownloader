@@ -5,6 +5,7 @@ from extractmanifest import getmanifesturls
 import aiohttp, aiofiles
 from yarl import URL
 from tqdm.asyncio import tqdm
+from datetime import datetime
 
 async def manifestdownload(manifest: dict, verbose: bool = False, audioonly: bool = False):
     if not os.path.exists('videoinfo'):
@@ -27,6 +28,10 @@ async def manifestdownload(manifest: dict, verbose: bool = False, audioonly: boo
                 while True:
                     try:
                         async with session.get(URL(url, encoded=True), timeout=10) as r:
+                            if r.status != 200 and r.status != 206:
+                                logging.debug('bad status code, waiting for 2 seconds')
+                                await asyncio.sleep(2)
+                                continue
                             while True:
                                 chunk = await r.content.read(1024)
                                 if not chunk:
@@ -35,71 +40,76 @@ async def manifestdownload(manifest: dict, verbose: bool = False, audioonly: boo
                                 progress.update(len(chunk))
                             break
                     except asyncio.exceptions.TimeoutError:
+                        logging.debug('timedout, waiting for 2 seconds')
                         await asyncio.sleep(2)
                         continue
                     except Exception as e:
                         logging.debug(str(e) + '\n\n' + url)
                         raise TypeError
 
+    currentdate = round(datetime.now().timestamp())
     if not audioonly:
         threads = asyncio.Semaphore(5)
         logging.debug('downloading ')
         progress = tqdm(total=totalsize, unit='iB', unit_scale=True)
         async with aiohttp.ClientSession() as session:
-            videotasks = [downloadmanifest(url, f'videoinfo/segmentv{index}.ts', progress, threads, session) for index, url in enumerate(videourls)]
-            audiotasks = [downloadmanifest(url, f'videoinfo/segmenta{index}.ts', progress, threads, session) for index, url in enumerate(audiourls)]
+            videotasks = [downloadmanifest(url, f'videoinfo/segmentv{index}-{currentdate}.ts', progress, threads, session) for index, url in enumerate(videourls)]
+            audiotasks = [downloadmanifest(url, f'videoinfo/segmenta{index}-{currentdate}.ts', progress, threads, session) for index, url in enumerate(audiourls)]
             await asyncio.gather(*videotasks)
             await asyncio.gather(*audiotasks)
             progress.close()
-        async with aiofiles.open(f'videoinfo/manvideo.ts', 'wb') as f1:
+        async with aiofiles.open(f'videoinfo/manvideo-{currentdate}.ts', 'wb') as f1:
             files = []
             for file in os.listdir('videoinfo'):
                 if file.startswith('segmentv'):
                     files.append('videoinfo/' + file)
-            files = sorted(files, key=lambda x: int(x.split('segmentv')[1].split('.ts')[0]))
+            files = sorted(files, key=lambda x: int(x.split('segmentv')[1].split('-')[0]))
             for file in files:
                 async with aiofiles.open(file, 'rb') as f2:
                     await f1.write(await f2.read())
-        async with aiofiles.open(f'videoinfo/manaudio.ts', 'wb') as f1:
+        async with aiofiles.open(f'videoinfo/manaudio-{currentdate}.ts', 'wb') as f1:
             files = []
             for file in os.listdir('videoinfo'):
                 if file.startswith('segmenta'):
                     files.append('videoinfo/' + file)
-            files = sorted(files, key=lambda x: int(x.split('segmenta')[1].split('.ts')[0]))
+            files = sorted(files, key=lambda x: int(x.split('segmenta')[1].split('-')[0]))
             for file in files:
                 async with aiofiles.open(file, 'rb') as f2:
                     await f1.write(await f2.read())
 
     else:
         progress = tqdm(total=None, unit='iB', unit_scale=True)
-        await downloadmanifest(audiourls, 'videoinfo/manaudio.ts', progress)
+        async with aiohttp.ClientSession() as session:
+            audiotasks = [downloadmanifest(url, f'videoinfo/segmenta{index}-{currentdate}.ts', progress, threads, session) for index, url in enumerate(audiourls)]
         progress.close()
-        async with aiofiles.open(f'videoinfo/manaudio.ts', 'wb') as f1:
+        async with aiofiles.open(f'videoinfo/manaudio-{currentdate}.ts', 'wb') as f1:
             files = []
             for file in os.listdir('videoinfo'):
                 if file.startswith('segmenta'):
                     files.append('videoinfo/' + file)
-            files = sorted(files, key=lambda x: int(x.split('segmenta')[1].split('.ts')[0]))
+            files = sorted(files, key=lambda x: int(x.split('segmenta')[1].split('-')[0]))
             for file in files:
                 async with aiofiles.open(file, 'rb') as f2:
                     await f1.write(await f2.read())
     for i in os.listdir('videoinfo'):
         if i.startswith('segmenta') or i.startswith('segmentv'):
             os.remove('videoinfo/'+i)
-    audiobitrate = subprocess.run('ffprobe -v quiet -print_format json -show_format -show_streams -i videoinfo/manaudio.ts'.split(), capture_output=True, text=True)
+    audiobitrate = subprocess.run(f'ffprobe -v quiet -print_format json -show_format -show_streams -i videoinfo/manaudio-{currentdate}.ts'.split(), capture_output=True, text=True)
     audiobitrate = json.loads(audiobitrate.stdout)
     audiobitrate = audiobitrate.get('streams')[0].get('bit_rate')
     try:
         if not audioonly:
-            subprocess.run(f'ffmpeg -i videoinfo/manvideo.ts -i videoinfo/manaudio.ts -c:v copy {"-c:a copy" if "avc1" in manifest.get("CODECS").split(",")[0] else f"-b:a {audiobitrate}"} merged.{extension}'.split(), check=True)
+            subprocess.run(f'ffmpeg -i videoinfo/manvideo-{currentdate}.ts -i videoinfo/manaudio-{currentdate}.ts -loglevel error -c:v copy {"-c:a copy" if "avc1" in manifest.get("CODECS").split(",")[0] else f"-b:a {audiobitrate}"} merged{currentdate}.{extension}'.split(), check=True)
 
         else:
-            subprocess.run(f'ffmpeg -i videoinfo/manaudio.ts merged.{extension}', check=True)
+            subprocess.run(f'ffmpeg -i videoinfo/manaudio-{currentdate}.ts -loglevel error merged{currentdate}.{extension}', check=True)
     except Exception as e:
         traceback.print_exc()
         logging.debug('trying again with ffmpeg')
         try:
-            subprocess.check_output(f'ffmpeg {"-i "+manifest.get("URL") if not audioonly else ""} -i {manifest.get("AUDIOLINK")} -c:v copy merged.{extension}'.split())
+            subprocess.check_output(f'ffmpeg {"-i "+manifest.get("URL") if not audioonly else ""} -i {manifest.get("AUDIOLINK")} -loglevel error -c:v copy merged{currentdate}.{extension}'.split())
         except Exception as e:
             traceback.print_exc()
-    return f'merged.{extension}', extension, audiobitrate
+    os.remove(f'videoinfo/manvideo-{currentdate}.ts')
+    os.remove(f'videoinfo/manaudio-{currentdate}.ts',)
+    return f'merged{currentdate}.{extension}', extension, audiobitrate

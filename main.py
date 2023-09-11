@@ -37,15 +37,17 @@ class ytdownload:
         logging.basicConfig(level=log_level, format="%(levelname)s: %(message)s")
         videoextension = mimetypevideo.split('/')[1].split(';')[0]
         audioextension = mimetypeaudio.split('/')[1].split(';')[0]
-
-        video = await normaldownload(videourl, filename=f'tempvideo.{videoextension}')
+        tempvideo = f'tempvideo{round(datetime.now().timestamp())}.{videoextension}'
+        tempaudio = f'tempaudio{round(datetime.now().timestamp())}.{audioextension}'
+        video = await normaldownload(videourl, filename=tempvideo)
         logging.debug(f'downloaded video, {video}')
-        audio = await normaldownload(audiourl, filename=f'tempaudio.{audioextension}')
+        audio = await normaldownload(audiourl, filename=tempaudio)
+        merged = f'merged{round(datetime.now().timestamp())}.{videoextension}'
         logging.debug(f'downloaded audio, {audio}')
         if video and audio:
             logging.info('successfully downloaded both, merging now')
             try:
-                result = subprocess.run(f'ffmpeg -i tempvideo.{videoextension} -i tempaudio.{audioextension} -v quiet -c:v copy {"-c:a copy " if videoextension == audioextension else ""} -map 0:v:0 -map 1:a:0 -y {"-ss "+start if start else ""} {"-to "+end if end else ""} merged.{videoextension}'.split(), check=True)
+                result = subprocess.run(f'ffmpeg -i {tempvideo} -i {tempaudio} -v quiet -c:v copy {"-c:a copy " if videoextension == audioextension else ""} -map 0:v:0 -map 1:a:0 -y {"-ss "+start if start else ""} {"-to "+end if end else ""} {merged}'.split(), check=True)
             except Exception as e:
                 print(e)
                 return
@@ -57,7 +59,7 @@ class ytdownload:
             for i in other:
                 logging.debug(f"removing file {i}")
                 os.remove(i)
-            return f'merged.{videoextension}', videoextension
+            return merged, videoextension
         else:
             raise ytdownload.someerror(f"no idea honestly")
         
@@ -781,8 +783,6 @@ class ytdownload:
                 subprocess.run(f'ffmpeg -i {result[0]} {"-ss "+start if start else ""} {"-to "+end if end else ""} -c copy temp.{result[1]}'.split(), check=True)
                 os.remove(result[0])
                 os.rename(f'temp.{result[1]}', result[0])
-            os.remove('videoinfo/manvideo.ts')
-            os.remove('videoinfo/manaudio.ts')
         elif audioonly:
             if not manifest:
                 if mp3audio:
