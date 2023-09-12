@@ -66,8 +66,10 @@ def decrypt(sigurl: str, functions: dict, verbose: bool = False, needlogin: bool
         else:
             logging.debug(r.status_code)
             logging.debug(newurl)
-            return None
-    newurl = nparam(newurl, thirdfunction, thirdfunctionname)
+            return newurl
+    if '&n=' in newurl:
+
+        newurl = nparam(newurl, thirdfunction, thirdfunctionname)
     return newurl
 
 def nparam(newurl:str, thirdfunction:str, thirdfunctionname: str):

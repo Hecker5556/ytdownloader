@@ -32,7 +32,7 @@ class ytdownload:
         def __init__(self, *args: object) -> None:
             super().__init__(*args)
     async def merge(videourl: str, audiourl: str, mimetypevideo: str, mimetypeaudio: str, 
-                    verbose: bool = False, start: str = None, end: str = None):
+                    verbose: bool = False, start: str = None, end: str = None,):
         log_level = logging.DEBUG if verbose else logging.INFO
         logging.basicConfig(level=log_level, format="%(levelname)s: %(message)s")
         videoextension = mimetypevideo.split('/')[1].split(';')[0]
@@ -93,7 +93,8 @@ class ytdownload:
                  nodownload: bool = False, priority: str = None, 
                  audioonly: bool = False, mp3audio: bool = False,
                  itag: int = None, filename: str = None,
-                 start: str = None, end: str = None):
+                 start: str = None, end: str = None,
+                 overwrite: bool = False, dontoverwrite: bool = True):
         """
         Download YouTube videos and extract information.
         
@@ -266,10 +267,10 @@ class ytdownload:
         audio = None
         manifestvideo = None
         videoandaudio = None
+        done = False
         if maxsize and not itag:
             videoids = []
             audioids = []                  
-            
             if links['unmergedsig'] != {} and not manifest and not premerged:
                 logging.info('downloading unmerged signatured')
                 for key, value in links['unmergedsig'].items():
@@ -384,8 +385,19 @@ class ytdownload:
                     video['url'] = decrypt(video.get('signatureCipher'), functions, verbose=verbose, needlogin=needlogin)
                 logging.debug(f'deciphering itag: {audio.get("itag")}')
                 audio['url'] = decrypt(audio.get('signatureCipher'), functions, verbose=verbose, needlogin=needlogin)
+                async with aiohttp.ClientSession() as session:
+                    from yarl import URL
+                    async with session.get(URL(audio.get('url'), encoded=True)) as response:
+                        if response.status == 403:
+                            done = False
+                            video = None
+                            audio = None
+                            videoids = []
+                            audioids = []
+                        else:
+                            done = True
 
-            elif links['unmergednosig'] != {} and not manifest and not premerged:
+            if links['unmergednosig'] != {} and not manifest and not premerged and not done:
                 logging.info('downloading unmerged no signatured')
                 for key, value in links['unmergednosig'].items():
                     if codec and codec in value.get('mimeType'):
@@ -488,8 +500,15 @@ class ytdownload:
                 logging.debug('deciphering n param')
                 functions = await getfunctions(basejslink, verbose=verbose)
                 if not audioonly:
-                    video['url'] = nparam(video.get('url'), functions.get('thirdfunction'), functions.get('thirdfunctionname'))
-                audio['url'] = nparam(audio.get('url'), functions.get('thirdfunction'), functions.get('thirdfunctionname'))
+                    try:
+                        video['url'] = nparam(video.get('url'), functions.get('thirdfunction'), functions.get('thirdfunctionname'))
+                    except IndexError:
+                        pass
+                try:
+                    audio['url'] = nparam(audio.get('url'), functions.get('thirdfunction'), functions.get('thirdfunctionname'))
+                except IndexError:
+                    pass
+                done = True
             elif premerged and not manifest and not audioonly:
                 
                 logging.info('downloading merged no sig')
@@ -647,6 +666,7 @@ class ytdownload:
             
             elif not premerged and not manifest:
                 if links['unmergedsig'] != {}:
+                    logging.info('downloading unmerged signatured')
                     for key, value in links['unmergedsig'].items():
                         if not audioonly:
                             if codec and codec in value.get('mimeType'):
@@ -682,7 +702,16 @@ class ytdownload:
                         video['url'] = decrypt(video.get('signatureCipher'), functions, verbose=verbose, needlogin=needlogin)
                     logging.debug(f'deciphering itag: {audio.get("itag")}')
                     audio['url'] = decrypt(audio.get('signatureCipher'), functions, verbose=verbose, needlogin=needlogin)
-                elif links['unmergednosig'] != {} and not manifest and not premerged:
+                    async with aiohttp.ClientSession() as session:
+                        from yarl import URL
+                        async with session.get(URL(audio.get('url'), encoded=True)) as response:
+                            if response.status == 403:
+                                done = False
+                                video = None
+                                audio = None
+                                videoids = []
+                                audioids = []
+                if links['unmergednosig'] != {} and not manifest and not premerged and not done:
                     logging.info('downloading unmerged no signatured')
                     logging.debug('gonna decipher n param')
                     functions = await getfunctions(basejslink, verbose=verbose)
@@ -695,7 +724,10 @@ class ytdownload:
                                 video = value
                                 break
                         logging.debug(f'deciphering n param for video itag: {video.get("itag")}')
-                        video['url'] = nparam(video.get('url'), thirdfunction=functions.get('thirdfunction'), thirdfunctionname=functions.get('thirdfunctionname'))
+                        try:
+                            video['url'] = nparam(video.get('url'), thirdfunction=functions.get('thirdfunction'), thirdfunctionname=functions.get('thirdfunctionname'))
+                        except IndexError:
+                            pass
                         logging.debug(video['url'])
                     for key, value in links['unmergednosig'].items():
                             if not audioonly:
@@ -718,8 +750,11 @@ class ytdownload:
                                 audio = value
                                 break
                     logging.debug(f'deciphering n param for itag: {audio.get("itag")}')
-                    audio['url'] = nparam(audio.get('url'), thirdfunction=functions.get('thirdfunction'), thirdfunctionname=functions.get('thirdfunctionname'))
-                    logging.debug(audio['url'])
+                    try:
+                        audio['url'] = nparam(audio.get('url'), thirdfunction=functions.get('thirdfunction'), thirdfunctionname=functions.get('thirdfunctionname'))
+                    except IndexError:
+                        pass
+                    logging.debug(audio['url'] + 'audio')
             elif premerged and not manifest and not audioonly:
                 if links['mergednosig'] != {}:
                     logging.info('downloading from merged not signatured')
@@ -812,22 +847,33 @@ class ytdownload:
             try:
                 os.rename(result[0], filename)
             except FileExistsError:
-                while True:
-                    choice = str(input("file with the same name exists already!\nwould you like to overwrite the file? [y/n]: "))
-                    choice = choice.lower()
-                    if choice not in ['y', 'n']:
-                        continue
-                    else:
-                        break
-                if choice == 'n':
+                if overwrite and not dontoverwrite:
+                    logging.info('overwriting existing file!')
+                    os.remove(filename)
+                    os.rename(result[0], filename)
+                elif dontoverwrite and not overwrite:
                     timestamp = str(round(datetime.now().timestamp()))
                     extension = result[1]
                     filetitle = "".join([x for x in otherinfo.get('title') if x not in "\/:*?<>|()"])
                     filename = f"{filetitle}{timestamp}.{extension}"
                     os.rename(result[0], filename)
-                else:
-                    os.remove(filename)
-                    os.rename(result[0], filename)
+                if (not overwrite and not dontoverwrite) or (overwrite and dontoverwrite):
+                    while True:
+                        choice = str(input("file with the same name exists already!\nwould you like to overwrite the file? [y/n]: "))
+                        choice = choice.lower()
+                        if choice not in ['y', 'n']:
+                            continue
+                        else:
+                            break
+                    if choice == 'n':
+                        timestamp = str(round(datetime.now().timestamp()))
+                        extension = result[1]
+                        filetitle = "".join([x for x in otherinfo.get('title') if x not in "\/:*?<>|()"])
+                        filename = f"{filetitle}{timestamp}.{extension}"
+                        os.rename(result[0], filename)
+                    else:
+                        os.remove(filename)
+                        os.rename(result[0], filename)
             except Exception as e:
                 traceback.print_exc()
             if not manifest and premerged and not audioonly:

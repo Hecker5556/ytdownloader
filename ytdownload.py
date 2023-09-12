@@ -1,7 +1,11 @@
 import argparse
 from main import ytdownload
 from datetime import datetime
-import traceback, os, asyncio
+import traceback, os, asyncio, sys
+try:
+    from getplaylist import getplaylist
+except ModuleNotFoundError:
+    sys.path.append(os.path.dirname(__file__))
 parser = argparse.ArgumentParser(description='download youtube videos in different ways, file sizes')
 parser.add_argument("link", nargs='?', help="link to a youtube video")
 parser.add_argument("--search", '-se', type=str, help='search for a youtube video with the input')
@@ -18,6 +22,8 @@ parser.add_argument('--itag', '-i', type=int, help='download that specific itag 
 parser.add_argument('--file-name', "-f", type=str, help='set output filename')
 parser.add_argument('--start', '-st', type=str, help='at what timestamp should the video start? MM:SS or HH:MM:SS')
 parser.add_argument('--end', '-e', type=str, help='at what timestamp should the video end? MM:SS or HH:MM:SS')
+parser.add_argument('--over-write', '-ow', action='store_true', help='overwrites video if a video with the same title already exists')
+parser.add_argument('--dont-overwrite', '-d', action='store_true', help='doesnt overwrite video if a video with the same title exists, instead adds timestamp')
 args = parser.parse_args()
 class provideinput(Exception):
     def __init__(self, *args: object) -> None:
@@ -39,14 +45,39 @@ if args.search:
             args.link = results[result]
             break
 start = datetime.now()
+playlistlinks = None
+resultdict = {}
+if 'playlist?' in args.link:
+    playlistlinks = asyncio.run(getplaylist.getplaylist(args.link))
+    resultdict = {}
 try:
-    result = asyncio.run(ytdownload.download(link=args.link, verbose=args.verbose, 
-                                manifest=args.manifest, maxsize=args.maxsize,
-                                premerged=args.premerged, codec=args.codec,
-                                nodownload=args.no_download, priority=args.priority, 
-                                audioonly=args.audio_only, mp3audio=args.mp3_audio,
-                                itag=args.itag, filename=args.file_name, start=args.start,
-                                end=args.end))
+    if playlistlinks:
+        for index, url in enumerate(playlistlinks):
+            while True:
+                try:
+                    result = asyncio.run(ytdownload.download(link=url, verbose=args.verbose, 
+                                                manifest=args.manifest, maxsize=args.maxsize,
+                                                premerged=args.premerged, codec=args.codec,
+                                                nodownload=args.no_download, priority=args.priority, 
+                                                audioonly=args.audio_only, mp3audio=args.mp3_audio,
+                                                itag=args.itag, filename=args.file_name, start=args.start,
+                                                end=args.end, overwrite=args.over_write, dontoverwrite=args.dont_overwrite))
+                    resultdict[index] = result
+                    break
+                except ytdownload.noformatsavaliable as e:
+                    print(e)
+                    break
+                except Exception as e:
+                    print(e)
+                    continue
+    else:
+        result = asyncio.run(ytdownload.download(link=args.link, verbose=args.verbose, 
+                                    manifest=args.manifest, maxsize=args.maxsize,
+                                    premerged=args.premerged, codec=args.codec,
+                                    nodownload=args.no_download, priority=args.priority, 
+                                    audioonly=args.audio_only, mp3audio=args.mp3_audio,
+                                    itag=args.itag, filename=args.file_name, start=args.start,
+                                    end=args.end))
 except KeyboardInterrupt:
     print('cleaning up')
     for i in os.listdir():
@@ -67,10 +98,14 @@ except Exception as e:
             print(f'deleting {i}')
             os.remove('videoinfo/'+i)
 try:
-    if isinstance(result, dict):
-        print(" ".join(([": ".join((str(key), str(value))) for key, value in result.items()])))
+    if playlistlinks:
+
+        print("\n".join(([": ".join((str(key), str(value))) for key, value in resultdict.items()])))
     else:
-        pass
+        if isinstance(result, dict):
+            print(" ".join(([": ".join((str(key), str(value))) for key, value in result.items()])))
+        else:
+            pass
 except:
     pass
 finish = datetime.now()
