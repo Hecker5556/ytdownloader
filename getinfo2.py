@@ -313,6 +313,12 @@ async def getinfo(link: str, verbose: bool = False, manifest: bool = False, prem
                     allinks['unmergedsig'][(str(i))] = value.get('streamingData').get('adaptiveFormats')[i]
                 sortdictbysize('unmergedsig')
             elif info['0'].get('url'):
+                for k, v in allinks['unmergednosig'].items():
+                    async with aiohttp.ClientSession() as session:
+                        if not v.get('contentLength'):
+                                async with session.get(v.get('url')) as r:
+                                    v['contentLength'] = r.headers.get('content-length')
+                                    allinks[k] = v
                 sortdictbysize('unmergednosig')
             elif info['0'].get('signatureCipher'):
                 sortdictbysize('unmergedsig')
