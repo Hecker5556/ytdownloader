@@ -1,7 +1,7 @@
 import argparse
 from main import ytdownload
 from datetime import datetime
-import traceback, os, asyncio, sys
+import traceback, os, asyncio, sys, logging
 try:
     from getplaylist import getplaylist
 except ModuleNotFoundError:
@@ -71,13 +71,23 @@ try:
                     print(e)
                     continue
     else:
-        result = asyncio.run(ytdownload.download(link=args.link, verbose=args.verbose, 
-                                    manifest=args.manifest, maxsize=args.maxsize,
-                                    premerged=args.premerged, codec=args.codec,
-                                    nodownload=args.no_download, priority=args.priority, 
-                                    audioonly=args.audio_only, mp3audio=args.mp3_audio,
-                                    itag=args.itag, filename=args.file_name, start=args.start,
-                                    end=args.end))
+        count = 0
+        while True:
+            try:
+                result = asyncio.run(ytdownload.download(link=args.link, verbose=args.verbose, 
+                                            manifest=args.manifest, maxsize=args.maxsize,
+                                            premerged=args.premerged, codec=args.codec,
+                                            nodownload=args.no_download, priority=args.priority, 
+                                            audioonly=args.audio_only, mp3audio=args.mp3_audio,
+                                            itag=args.itag, filename=args.file_name, start=args.start,
+                                            end=args.end))
+                break
+            except Exception as e:
+                logging.info(e)
+                count += 1
+                if count == 3:
+                    break
+                logging.info('\nTrying Again...')
 except KeyboardInterrupt:
     print('cleaning up')
     for i in os.listdir():

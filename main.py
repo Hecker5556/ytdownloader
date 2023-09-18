@@ -1,20 +1,12 @@
 import subprocess, os, logging, re, sys
-try:
-    from getinfo2 import getinfo
-    from manifestdownload import manifestdownload
-    from normaldownload import normaldownload
-    from decipher import decrypt, nparam
-    from getjsfunctions import getfunctions
-    from extractmanifest import extractmanifest
-
-except ModuleNotFoundError:
-    sys.path.append(os.path.dirname(__file__))
-    from getinfo2 import getinfo
-    from manifestdownload import manifestdownload
-    from normaldownload import normaldownload
-    from decipher import decrypt, nparam
-    from getjsfunctions import getfunctions
-    from extractmanifest import extractmanifest
+sys.path.append(os.path.dirname(__file__))
+from getinfo2 import getinfo
+from manifestdownload import manifestdownload
+from normaldownload import normaldownload
+from decipher import decrypt, nparam
+from getjsfunctions import getfunctions
+from extractmanifest import extractmanifest
+import dashmanifestdownload
 import asyncio, traceback
 from datetime import datetime, timedelta
 from prettytable import PrettyTable
@@ -244,7 +236,7 @@ class ytdownload:
                 formattype = entrydata.get('mimeType', 'video/mp4').split(';')[0]
                 codec = entrydata.get('mimeType').split('codecs=')[1].replace('"', '') if entrydata.get('mimeType') else entrydata.get('CODECS')
                 try:
-                    filesize = f"{round(int(entrydata.get('contentLength'))/(1024*1024), 2)}mb" if entrydata.get('contentLength') else '~'+ str(entrydata.get('FILESIZE')) + 'mb'
+                    filesize = f"{round(int(entrydata.get('contentLength'))/(1024*1024), 2)}mb" if entrydata.get('contentLength') and not entrydata.get('type') else f'~{round(int(entrydata.get("contentLength"))/(1024*1024), 2)}mb' if entrydata.get('contentLength') and entrydata.get('type') else '~'+ str(entrydata.get('FILESIZE')) + 'mb'
                 except Exception as e:
                     logging.info(e)
                     logging.info(entrydata)
@@ -257,6 +249,8 @@ class ytdownload:
                     newlist.append(entrydata.get(i, 'not available'))
                 if entrydata.get('BANDWIDTH'):
                     newlist.append('m3u8')
+                elif entrydata.get('type'):
+                    newlist.append('DASH')
                 else:
                     newlist.append('https')
                 table.add_row(newlist)
@@ -803,9 +797,20 @@ class ytdownload:
 
 
         if not manifest and not premerged and not audioonly:
-            result = await ytdownload.merge(video.get('url'), audio.get('url'), video.get('mimeType'), audio.get('mimeType'), verbose=verbose, start=start, end=end)
+            if not video.get('type'):
+                result = await ytdownload.merge(video.get('url'), audio.get('url'), video.get('mimeType'), audio.get('mimeType'), verbose=verbose, start=start, end=end)
+            else:
+                logging.info('downloading dash manifest')
+                tempvideo = await dashmanifestdownload.download(video)
+                tempaudio = await normaldownload(audio.get('url'), filename=f"merged{round(datetime.now().timestamp())}.{audio.get('mimeType').split('/')[1].split(';')[0] if audio.get('mimeType').split('/')[1].split(';')[0] == 'webm' else 'mp3'}")
+                result = f'merged{round(datetime.now().timestamp())}.{tempvideo[0]}', tempvideo[1]
+                subprocess.run(f'ffmpeg -i {tempvideo[0]} -i {tempaudio[0]} -map 0:v:0 -map 1:a:0 -c copy {result[0]}')
+            if start or end:
+                subprocess.run(f'ffmpeg -i {result[0]} {"-ss "+start if start else ""} {"-to "+end if end else ""} -c copy temp.{result[1]}'.split(), check=True)
+                os.remove(result[0])
+                os.rename(f'temp.{result[1]}', result[0])
         elif premerged and not audioonly:
-            result = await normaldownload(video.get('url'), filename=f"merged.{video.get('mimeType').split('/')[1].split(';')[0]}")
+            result = await normaldownload(video.get('url'), filename=f"merged{round(datetime.now().timestamp())}.{video.get('mimeType').split('/')[1].split(';')[0]}")
             if start or end:
                 subprocess.run(f'ffmpeg -i {result[0]} {"-ss "+start if start else ""} {"-to "+end if end else ""} -c copy temp.{result[1]}'.split(), check=True)
                 os.remove(result[0])
@@ -821,11 +826,12 @@ class ytdownload:
         elif audioonly:
             if not manifest:
                 if mp3audio:
-                    result = await normaldownload(audio.get('url'), filename='merged.mp3')
-                    os.rename('merged.mp3', 'temp.mp3')
-                    subprocess.run(f'ffmpeg -i temp.mp3 merged.mp3'.split())
+                    result = await normaldownload(audio.get('url'), filename=f'merged{round(datetime.now().timestamp())}.mp3')
+                    filename = f'temp{round(datetime.now().timestamp())}.mp3'
+                    os.rename(result[0], filename)
+                    subprocess.run(f'ffmpeg -i {filename} {result[0]}'.split())
                 else:
-                    result = await normaldownload(audio.get('url'), filename=f"merged.{audio.get('mimeType').split('/')[1].split(';')[0] if audio.get('mimeType').split('/')[1].split(';')[0] == 'webm' else 'mp3'}")
+                    result = await normaldownload(audio.get('url'), filename=f"merged{round(datetime.now().timestamp())}.{audio.get('mimeType').split('/')[1].split(';')[0] if audio.get('mimeType').split('/')[1].split(';')[0] == 'webm' else 'mp3'}")
                 if start or end:
                     subprocess.run(f'ffmpeg -i {result[0]} {"-ss "+start if start else ""} {"-to "+end if end else ""} -c copy temp.{result[1]}'.split(), check=True)
                     os.remove(result[0])
@@ -836,8 +842,6 @@ class ytdownload:
                     subprocess.run(f'ffmpeg -i {result[0]} {"-ss "+start if start else ""} {"-to "+end if end else ""} -c copy temp.{result[1]}'.split(), check=True)
                     os.remove(result[0])
                     os.rename(f'temp.{result[1]}', result[0])
-                os.remove('videoinfo/manvideo.ts')
-                os.remove('videoinfo/manaudio.ts')
         if result and not filename:
             filename = "".join([x for x in otherinfo.get('title')+f'.{result[1]}' if x not in '"\\/:*?<>|()'])
         elif result and filename:

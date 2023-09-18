@@ -24,24 +24,22 @@ async def manifestdownload(manifest: dict, verbose: bool = False, audioonly: boo
     totalsize = float(manifest.get('FILESIZE'))*(1024*1024)
     async def downloadmanifest(url: str, filename: str, progress, threads: asyncio.Semaphore, session: aiohttp.ClientSession):
         async with threads:
-            async with aiofiles.open(filename, 'wb') as f1:
                 while True:
                     try:
-                        async with session.get(URL(url, encoded=True), timeout=10) as r:
-                            if r.status != 200 and r.status != 206:
-                                logging.debug('bad status code, waiting for 2 seconds')
-                                await asyncio.sleep(2)
-                                continue
-                            while True:
-                                chunk = await r.content.read(1024)
-                                if not chunk:
-                                    break
-                                await f1.write(chunk)
-                                progress.update(len(chunk))
-                            break
+                        async with aiofiles.open(filename, 'wb') as f1:
+                            async with session.get(URL(url, encoded=True), timeout=10) as r:
+                                if r.status != 200 and r.status != 206:
+                                    logging.debug('bad status code, waiting for 2 seconds')
+                                    await asyncio.sleep(2)
+                                    continue
+                                while True:
+                                    chunk = await r.content.read(1024)
+                                    if not chunk:
+                                        break
+                                    await f1.write(chunk)
+                                    progress.update(len(chunk))
+                                break
                     except asyncio.exceptions.TimeoutError:
-                        logging.debug('timedout, waiting for 2 seconds')
-                        await asyncio.sleep(2)
                         continue
                     except Exception as e:
                         logging.debug(str(e) + '\n\n' + url)

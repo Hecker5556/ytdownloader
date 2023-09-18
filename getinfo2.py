@@ -3,6 +3,7 @@ from pprint import pformat
 from extractmanifest import extractmanifest
 from decipher import decrypt
 from getjsfunctions import getfunctions
+from datetime import datetime
 class someerror(Exception):
     def __init__(self, *args: object) -> None:
         super().__init__(*args)
@@ -313,22 +314,33 @@ async def getinfo(link: str, verbose: bool = False, manifest: bool = False, prem
                     allinks['unmergedsig'][(str(i))] = value.get('streamingData').get('adaptiveFormats')[i]
                 sortdictbysize('unmergedsig')
             elif info['0'].get('url'):
-                keystoremove = []
+                segmentcount = None
                 for k, v in allinks['unmergednosig'].items():
                     async with aiohttp.ClientSession() as session:
                         if not v.get('contentLength'):
                                 async with session.get(v.get('url')) as r:
                                     if r.headers.get('content-length'):
                                         v['contentLength'] = r.headers.get('content-length')
-                                        allinks[k] = v
-                                    else:
-                                        keystoremove.append(k)
-                    print(v.get('type'))
-                    if v.get('type') == 'FORMAT_STREAM_TYPE_OTF':
-                        print('deleting ', k)
-                        keystoremove.append(k)
-                for ke in keystoremove:
-                    del allinks['unmergednosig'][ke]
+                                        allinks['unmergednosig'][k] = v
+
+
+                        if v.get('type') == 'FORMAT_STREAM_TYPE_OTF':
+                            if not segmentcount:
+                                r = requests.get(f'{v["url"]}&sq=0', stream=True)
+                                pattern = r'Segment-Count: (.*?)\n'
+                                response1 = r.content
+                                if re.findall(pattern, response1.decode('unicode_escape')):
+                                    v['segments'] = re.findall(pattern, response1.decode('unicode_escape'))[0].rstrip()
+                                    allinks['unmergednosig'][k] = v
+                                    segmentcount = re.findall(pattern, response1.decode('unicode_escape'))[0].rstrip()
+                            else:
+                                v['segments'] = segmentcount
+                                allinks['unmergednosig'][k] = v
+                            r = requests.get(v.get('url') + '&sq=1', stream=True)
+                            length = len(r.content)
+                            totalsize = int(length) * int(segmentcount)
+                            v['contentLength'] = totalsize
+                            allinks['unmergednosig'][k] = v
 
                 sortdictbysize('unmergednosig')
             elif info['0'].get('signatureCipher'):
