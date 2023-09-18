@@ -82,6 +82,8 @@ try:
                                             itag=args.itag, filename=args.file_name, start=args.start,
                                             end=args.end))
                 break
+            except ytdownload.noformatsavaliable:
+                logging.info('no formats avaliable at ur requested settings (filesize)')
             except Exception as e:
                 logging.info(e)
                 count += 1
