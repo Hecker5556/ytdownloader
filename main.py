@@ -805,6 +805,8 @@ class ytdownload:
                 tempaudio = await normaldownload(audio.get('url'), filename=f"merged{round(datetime.now().timestamp())}.{audio.get('mimeType').split('/')[1].split(';')[0] if audio.get('mimeType').split('/')[1].split(';')[0] == 'webm' else 'mp3'}")
                 result = f'merged{round(datetime.now().timestamp())}.{tempvideo[0]}', tempvideo[1]
                 subprocess.run(f'ffmpeg -i {tempvideo[0]} -i {tempaudio[0]} -map 0:v:0 -map 1:a:0 -c copy {result[0]}')
+                os.remove(tempvideo[0])
+                os.remove(tempaudio[0])
             if start or end:
                 subprocess.run(f'ffmpeg -i {result[0]} {"-ss "+start if start else ""} {"-to "+end if end else ""} -c copy temp.{result[1]}'.split(), check=True)
                 os.remove(result[0])
