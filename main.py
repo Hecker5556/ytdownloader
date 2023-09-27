@@ -825,9 +825,10 @@ class ytdownload:
             if not manifest:
                 if mp3audio:
                     result = await normaldownload(audio.get('url'), filename=f'merged{round(datetime.now().timestamp())}.mp3')
-                    filename = f'temp{round(datetime.now().timestamp())}.mp3'
-                    os.rename(result[0], filename)
-                    subprocess.run(f'ffmpeg -i {filename} {result[0]}'.split())
+                    filenamea = f'temp{round(datetime.now().timestamp())}.mp3'
+                    os.rename(result[0], filenamea)
+                    subprocess.run(f'ffmpeg -i {filenamea} -v quiet {result[0]}'.split())
+                    os.remove(filenamea)
                 else:
                     result = await normaldownload(audio.get('url'), filename=f"merged{round(datetime.now().timestamp())}.{audio.get('mimeType').split('/')[1].split(';')[0] if audio.get('mimeType').split('/')[1].split(';')[0] == 'webm' else 'mp3'}")
                 if start or end:
