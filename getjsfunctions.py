@@ -55,7 +55,7 @@ async def getfunctions(link: str, verbose: bool = False):
     # maybethirdfunction = basejs.text[basejs.text.find(f'{thirdfunctionname}=function(a)'):basejs.text.find(f'{thirdfunctionname}=function(a)')+6000]
     # thirdfunction = maybethirdfunction[:maybethirdfunction.rfind('return b.join("")};')+20]
     thirdfunctionpattern = r'((.*?)=function\(a\)\{var b=([\s\S]*?)return b.join\(\"\"\)};)'
-    matches = re.findall(thirdfunctionpattern, basejs.text[basejs.text.find('return b.join("")};')-6000:basejs.text.find('return b.join("")};')+len('return b.join("")};')])
+    matches = re.findall(thirdfunctionpattern, basejs.text[basejs.text.find('return b.join("")};')-8000:basejs.text.find('return b.join("")};')+len('return b.join("")};')])
     thirdfunction = matches[0][0]
     thirdfunctionname = matches[0][1]
     logging.debug(thirdfunctionname)
