@@ -3,7 +3,7 @@ def main():
     requirements_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "ytdownloader", "requirements.txt")
     subprocess.run(['pip', 'install', '-r', requirements_path])
     if sys.platform.startswith('win'):
-        subprocess.run('python -m pip install cx_Freeze'.split())
+        
         from cx_Freeze import setup, Executable
 
         build_options = {'packages': [], 'excludes': []}
@@ -76,6 +76,7 @@ if __name__ == '__main__':
         subprocess.run('pip install pyuac'.split())
         subprocess.run('pip install pypiwin32'.split())
         subprocess.run('pip install win32security'.split())
+        subprocess.run('pip install cx_Freeze'.split())
         #require admin to make sure modules are installed correctly
         import pyuac 
 

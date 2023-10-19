@@ -2,10 +2,10 @@ import argparse
 from main import ytdownload
 from datetime import datetime
 import traceback, os, asyncio, sys, logging
-try:
-    from getplaylist import getplaylist
-except ModuleNotFoundError:
-    sys.path.append(os.path.dirname(__file__))
+sys.path.append(os.path.dirname(__file__))
+
+from getplaylist import getplaylist
+
 parser = argparse.ArgumentParser(description='download youtube videos in different ways, file sizes')
 parser.add_argument("link", nargs='?', help="link to a youtube video")
 parser.add_argument("--search", '-se', type=str, help='search for a youtube video with the input')
