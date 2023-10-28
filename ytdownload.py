@@ -84,6 +84,7 @@ try:
                 break
             except ytdownload.noformatsavaliable:
                 logging.info('no formats avaliable at ur requested settings (filesize)')
+                break
             except Exception as e:
                 logging.info(e)
                 count += 1
