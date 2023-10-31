@@ -198,19 +198,26 @@ async def getinfo(link: str, verbose: bool = False, manifest: bool = False, prem
                      'mergednosig': {},
                      'mergedsig': {},
                      'unmergedsig': {}}
+    def sortdictbysize(name: str):
+        sortedthe = dict(sorted(allinks[name].items(), key=lambda x: int(x[1]['contentLength']), reverse=True))
+        sortedthe = {str(idx): item for idx, item in enumerate(sortedthe.values())}
+        allinks[name] = sortedthe
     if info.get('0'):
         if info.get('0').get('signatureCipher'):
             logging.debug('found unmerged with signatures from web')
             allinks['unmergedsig'] = info
+            sortdictbysize("unmergedsig")
         elif info.get('0').get('url'):
             allinks['unmergednosig'] = info
             logging.debug('found unmerged no signatures from web')
-        
+            sortdictbysize("unmergednosig")
         if info2.get('0').get('signatureCipher'):
             logging.debug('found merged with signatures from web')
             allinks['mergedsig'] = info2
+            sortdictbysize("mergedsig")
         elif info2.get('0').get('url'):
             logging.debug('found merged no signatures from web')
+            sortdictbysize("mergednosig")
     else:
         logging.debug('couldnt find anything from webpage')
     logging.debug('downloading apis')
@@ -267,10 +274,7 @@ async def getinfo(link: str, verbose: bool = False, manifest: bool = False, prem
                 allinks['manifest']['0'] = value.get('streamingData').get('hlsManifestUrl')
 
 
-        def sortdictbysize(name: str):
-            sortedthe = dict(sorted(allinks[name].items(), key=lambda x: int(x[1]['contentLength']), reverse=True))
-            sortedthe = {str(idx): item for idx, item in enumerate(sortedthe.values())}
-            allinks[name] = sortedthe   
+
         if value.get('streamingData').get('formats'):
             if value.get('streamingData').get('formats')[0].get('url'):
                 logging.debug('found merged formats unsignatured ' + key)
@@ -312,6 +316,7 @@ async def getinfo(link: str, verbose: bool = False, manifest: bool = False, prem
                 logging.debug('found unmerged formats with signature ' + key)
                 for i in range(len(value.get('streamingData').get('adaptiveFormats'))):
                     allinks['unmergedsig'][(str(i))] = value.get('streamingData').get('adaptiveFormats')[i]
+                logging.debug("sorting unmergedsig")
                 sortdictbysize('unmergedsig')
             elif info['0'].get('url'):
                 segmentcount = None
