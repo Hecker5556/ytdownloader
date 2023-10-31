@@ -214,10 +214,16 @@ async def getinfo(link: str, verbose: bool = False, manifest: bool = False, prem
         if info2.get('0').get('signatureCipher'):
             logging.debug('found merged with signatures from web')
             allinks['mergedsig'] = info2
-            sortdictbysize("mergedsig")
+            try:
+                sortdictbysize("mergedsig")
+            except:
+                pass
         elif info2.get('0').get('url'):
             logging.debug('found merged no signatures from web')
-            sortdictbysize("mergednosig")
+            try:
+                sortdictbysize("mergednosig")
+            except:
+                pass
     else:
         logging.debug('couldnt find anything from webpage')
     logging.debug('downloading apis')
