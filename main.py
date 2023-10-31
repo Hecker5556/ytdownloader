@@ -155,9 +155,9 @@ class ytdownload:
                 raise ytdownload.invalidformatting(f'{end} is not formatted properly do either HH:MM:SS or MM:SS')
             end = returnstringdate(end)
                 
-        pattern1 = r'(?:https?://)?(?:www\.)?youtube\.com/watch\?v=[\w-]+'
-        pattern2 = r'(?:https?://)?(?:www\.)?youtu\.be/[\w-]+'
-        pattern3 = r'(?:https?://)?(?:www\.)?youtube\.com/shorts/[\w-]+(?:\?feature=[\w]+)?'
+        pattern1 = r'(?:https?://)?(?:www\.)?(?:m\.)?youtube\.com/watch\?v=[\w-]+'
+        pattern2 = r'(?:https?://)?(?:www\.)?(?:m\.)?youtu\.be/[\w-]+'
+        pattern3 = r'(?:https?://)?(?:www\.)?(?:m\.)?youtube\.com/shorts/[\w-]+(?:\?feature=[\w]+)?'
         match = re.findall(pattern1, link)
         if not match:
             match = re.findall(pattern2, link)

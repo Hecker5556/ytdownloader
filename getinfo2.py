@@ -11,9 +11,9 @@ async def getinfo(link: str, verbose: bool = False, manifest: bool = False, prem
     log_level = logging.DEBUG if verbose else logging.INFO
     logging.basicConfig(level=log_level, format="%(levelname)s: %(message)s")
     logging.info('downloading video info')
-    pattern1 = r'(?:https?://)?(?:www\.)?youtube\.com/watch\?v=([\w-]+)'
-    pattern2 = r'(?:https?://)?(?:www\.)?youtu\.be\/([\w-]+)'
-    pattern3 = r'(?:https?://)?(?:www\.)?youtube\.com/shorts/([\w-]+)(?:\?feature=[\w]+)?'
+    pattern1 = r'(?:https?://)?(?:www\.)?(?:m\.)?youtube\.com/watch\?v=([\w-]+)'
+    pattern2 = r'(?:https?://)?(?:www\.)?(?:m\.)?youtu\.be\/([\w-]+)'
+    pattern3 = r'(?:https?://)?(?:www\.)?(?:m\.)?youtube\.com/shorts/([\w-]+)(?:\?feature=[\w]+)?'
     videoid = re.findall(pattern1, link)[0] if re.findall(pattern1, link) else re.findall(pattern2, link)[0] if re.findall(pattern2, link) else re.findall(pattern3, link)[0]
     cookies = {
         "PREF": "f4=4000000&f6=40000000&tz=Europe.Warsaw&f5=30000&f7=100",
