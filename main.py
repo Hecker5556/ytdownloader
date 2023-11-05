@@ -84,7 +84,7 @@ class ytdownload:
                  premerged: bool = False, codec: str = None, 
                  nodownload: bool = False, priority: str = None, 
                  audioonly: bool = False, mp3audio: bool = False,
-                 itag: int = None, filename: str = None,
+                 itag: int = None, onlyitag: bool = True, filename: str = None,
                  start: str = None, end: str = None,
                  overwrite: bool = False, dontoverwrite: bool = True):
         """
@@ -118,7 +118,9 @@ class ytdownload:
             mp3audio (bool, optional): Download audio in MP3 format. Automatically sets audioonly to True.
             Default is False.
 
-            itag (int, optional): Download specific itag
+            itag (int, optional): Download specific itag and the video/audio with it
+
+            onlyitag (bool, optional): whether to download only that specific itag
 
             filename (str, optional): set output filename
 
@@ -589,25 +591,30 @@ class ytdownload:
                                 logging.info('found audio with itag')
                             break
                     if video:
-                        for key, value in links['unmergedsig'].items():
-                            if 'audio' in value.get('mimeType'):
-                                audio = value
-                                break
-                        logging.info(f'pairing itag {itag}({video.get("itag")} with audio itag {audio.get("itag")})')
+                        if not onlyitag:
+                            for key, value in links['unmergedsig'].items():
+                                if 'audio' in value.get('mimeType'):
+                                    audio = value
+                                    break
+                            logging.info(f'pairing itag {itag}({video.get("itag")} with audio itag {audio.get("itag")})')
                         logging.debug('getting functions')
                         functions = await getfunctions(basejslink, verbose=verbose)
                         video['url'] = decrypt(video.get('signatureCipher'), functions, verbose=verbose, needlogin=needlogin)
-                        audio['url'] = decrypt(audio.get('signatureCipher'), functions, verbose=verbose, needlogin=needlogin)
+                        if not onlyitag:
+                            audio['url'] = decrypt(audio.get('signatureCipher'), functions, verbose=verbose, needlogin=needlogin)
                         logging.debug('got decrypted')
                     elif audio:
-                        for key, value in links['unmergedsig'].items():
-                            if 'video' in value.get('mimeType'):
-                                video = value
-                                break
-                        logging.info(f'pairing itag {itag}({video.get("itag")} with audio itag {audio.get("itag")})')
+                        audioonly = True
+                        if not onlyitag:
+                            for key, value in links['unmergedsig'].items():
+                                if 'video' in value.get('mimeType'):
+                                    video = value
+                                    break
+                            logging.info(f'pairing itag {itag}({video.get("itag")} with audio itag {audio.get("itag")})')
                         logging.debug('getting functions')
                         functions = await getfunctions(basejslink, verbose=verbose)
-                        video['url'] = decrypt(video.get('signatureCipher'), functions, verbose=verbose, needlogin=needlogin)
+                        if not onlyitag:
+                            video['url'] = decrypt(video.get('signatureCipher'), functions, verbose=verbose, needlogin=needlogin)
                         audio['url'] = decrypt(audio.get('signatureCipher'), functions, verbose=verbose, needlogin=needlogin)
                         logging.debug('got decrypted')
                 if links['unmergednosig'] != {} and not video and not audio:
@@ -620,25 +627,30 @@ class ytdownload:
                                 audio = value
                             break
                     if video:
-                        for key, value in links['unmergednosig'].items():
-                            if 'audio' in value.get('mimeType'):
-                                audio = value
-                                break
-                        logging.info(f'paring itag {itag}({video.get("itag")} with audio itag {audio.get("itag")})')
+                        if not onlyitag:
+                            for key, value in links['unmergednosig'].items():
+                                if 'audio' in value.get('mimeType'):
+                                    audio = value
+                                    break
+                            logging.info(f'paring itag {itag}({video.get("itag")} with audio itag {audio.get("itag")})')
                         logging.debug('getting functions')
                         functions = await getfunctions(basejslink, verbose=verbose)
                         video['url'] = nparam(video.get('url'), thirdfunction=functions.get('thirdfunction'), thirdfunctionname=functions.get('thirdfunctionname'))
-                        audio['url'] = nparam(audio.get('url'),thirdfunction=functions.get('thirdfunction'), thirdfunctionname=functions.get('thirdfunctionname'))
+                        if not onlyitag:
+                            audio['url'] = nparam(audio.get('url'),thirdfunction=functions.get('thirdfunction'), thirdfunctionname=functions.get('thirdfunctionname'))
                         logging.debug('got decrypted')
                     elif audio:
-                        for key, value in links['unmergednosig'].items():
-                            if 'video' in value.get('mimeType'):
-                                video = value
-                                break
-                        logging.info(f'pairing itag {itag}({video.get("itag")} with audio itag {audio.get("itag")})')
+                        audioonly = True
+                        if not onlyitag:
+                            for key, value in links['unmergednosig'].items():
+                                if 'video' in value.get('mimeType'):
+                                    video = value
+                                    break
+                            logging.info(f'pairing itag {itag}({video.get("itag")} with audio itag {audio.get("itag")})')
                         logging.debug('getting functions')
                         functions = await getfunctions(basejslink, verbose=verbose)
-                        video['url'] = nparam(video.get('url'), thirdfunction=functions.get('thirdfunction'), thirdfunctionname=functions.get('thirdfunctionname'))
+                        if not onlyitag:
+                            video['url'] = nparam(video.get('url'), thirdfunction=functions.get('thirdfunction'), thirdfunctionname=functions.get('thirdfunctionname'))
                         audio['url'] = nparam(audio.get('url'),thirdfunction=functions.get('thirdfunction'), thirdfunctionname=functions.get('thirdfunctionname'))
                         logging.debug('got decrypted')
                 if links['manifest'] != {} and not video:
@@ -650,7 +662,7 @@ class ytdownload:
                             manifestvideo = value
                             manifest = True
                             break
-                if not manifestvideo and not video:
+                if not manifestvideo and not video and not audio:
                     raise ytdownload.noformatsavaliable(f'couldnt find itag {itag}')
                 
                 
@@ -798,7 +810,11 @@ class ytdownload:
 
         if not manifest and not premerged and not audioonly:
             if not video.get('type'):
+                logging.debug(f"downloading video \n{video.get('url')}\n audio \n {audio.get('url')}")
                 result = await ytdownload.merge(video.get('url'), audio.get('url'), video.get('mimeType'), audio.get('mimeType'), verbose=verbose, start=start, end=end)
+            elif not audio:
+                logging.debug(f"downloading video only: \n{video.get('url')}")
+                result = await normaldownload(video.get('url', filename=f"merged{round(datetime.now().timestamp())}.{video.get('mimeType').split('/')[1].split(';')[0]}"))
             else:
                 logging.info('downloading dash manifest')
                 tempvideo = await dashmanifestdownload.download(video)
@@ -808,6 +824,7 @@ class ytdownload:
                 os.remove(tempvideo[0])
                 os.remove(tempaudio[0])
         elif premerged and not audioonly:
+            logging.debug(f"downloading video \n{video.get('url')}")
             result = await normaldownload(video.get('url'), filename=f"merged{round(datetime.now().timestamp())}.{video.get('mimeType').split('/')[1].split(';')[0]}")
             if start or end:
                 subprocess.run(f'ffmpeg -i {result[0]} {"-ss "+start if start else ""} {"-to "+end if end else ""} -c copy temp.{result[1]}'.split(), check=True)
@@ -827,7 +844,7 @@ class ytdownload:
                     result = await normaldownload(audio.get('url'), filename=f'merged{round(datetime.now().timestamp())}.mp3')
                     filenamea = f'temp{round(datetime.now().timestamp())}.mp3'
                     os.rename(result[0], filenamea)
-                    subprocess.run(f'ffmpeg -i {filenamea} -v quiet {result[0]}'.split())
+                    subprocess.run(f'ffmpeg -i {filenamea} -v quiet -b:a {audio.get("bitrate")} {result[0]}'.split())
                     os.remove(filenamea)
                 else:
                     result = await normaldownload(audio.get('url'), filename=f"merged{round(datetime.now().timestamp())}.{audio.get('mimeType').split('/')[1].split(';')[0] if audio.get('mimeType').split('/')[1].split(';')[0] == 'webm' else 'mp3'}")
@@ -922,7 +939,8 @@ class ytdownload:
                             'codec': audio.get('mimeType').split('; ')[1],
                             'audioQuality': audio.get('audioQuality'),
                             'filesize': str(round(os.path.getsize(filename)/(1024*1024),2)),
-                            'bitrate':str(int(json.loads(subprocess.check_output(thecommand))['format'].get('bit_rate'))/1000) +' kbs'}
+                            'ffprobe bitrate':str(int(json.loads(subprocess.check_output(thecommand))['format'].get('bit_rate'))/1000) +' kbs',
+                            'yt bitrate': str(audio.get('bitrate')) + ' kbs'}
                 if audioonly and manifest:
                     maincommand = 'ffprobe -v quiet -print_format json -show_format -show_streams -i '.split()
                     maincommand.append(f"{filename}")

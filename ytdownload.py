@@ -19,6 +19,7 @@ parser.add_argument('--priority', '-pr', type=str, help='prioritize video/audio 
 parser.add_argument('--audio-only', '-a', action='store_true', help='whether to only extract audio and return in mp3 format')
 parser.add_argument('--mp3-audio', '-mp3',action='store_true', help='when downloading audio only, whether to convert it to mp3')
 parser.add_argument('--itag', '-i', type=int, help='download that specific itag and automatically pair audio to it')
+parser.add_argument("--only-itag", "-oi", action="store_true", help="whether to only download the itag provided")
 parser.add_argument('--file-name', "-f", type=str, help='set output filename')
 parser.add_argument('--start', '-st', type=str, help='at what timestamp should the video start? MM:SS or HH:MM:SS')
 parser.add_argument('--end', '-e', type=str, help='at what timestamp should the video end? MM:SS or HH:MM:SS')
@@ -60,7 +61,7 @@ try:
                                                 premerged=args.premerged, codec=args.codec,
                                                 nodownload=args.no_download, priority=args.priority, 
                                                 audioonly=args.audio_only, mp3audio=args.mp3_audio,
-                                                itag=args.itag, filename=args.file_name, start=args.start,
+                                                itag=args.itag, onlyitag=args.itag, filename=args.file_name, start=args.start,
                                                 end=args.end, overwrite=args.over_write, dontoverwrite=args.dont_overwrite))
                     resultdict[index] = result
                     break
@@ -68,7 +69,7 @@ try:
                     print(e)
                     break
                 except Exception as e:
-                    print(e)
+                    print(traceback.print_exc())
                     continue
     else:
         count = 0
@@ -86,7 +87,7 @@ try:
                 logging.info('no formats avaliable at ur requested settings (filesize)')
                 break
             except Exception as e:
-                logging.info(e)
+                logging.info(traceback.print_exc())
                 count += 1
                 if count == 3:
                     break

@@ -4,52 +4,22 @@ from extractmanifest import extractmanifest
 from decipher import decrypt
 from getjsfunctions import getfunctions
 from datetime import datetime
+from checkrestricted import checkrestricted, getwebjson
 class someerror(Exception):
     def __init__(self, *args: object) -> None:
         super().__init__(*args)
-async def getinfo(link: str, verbose: bool = False, manifest: bool = False, premerged: bool = False, nodownload: bool = False):
+async def getinfo(link: str, verbose: bool = False, manifest: bool = False, 
+                  premerged: bool = False, nodownload: bool = False):
     log_level = logging.DEBUG if verbose else logging.INFO
     logging.basicConfig(level=log_level, format="%(levelname)s: %(message)s")
     logging.info('downloading video info')
-    pattern1 = r'(?:https?://)?(?:www\.)?(?:m\.)?youtube\.com/watch\?v=([\w-]+)'
-    pattern2 = r'(?:https?://)?(?:www\.)?(?:m\.)?youtu\.be\/([\w-]+)'
-    pattern3 = r'(?:https?://)?(?:www\.)?(?:m\.)?youtube\.com/shorts/([\w-]+)(?:\?feature=[\w]+)?'
-    videoid = re.findall(pattern1, link)[0] if re.findall(pattern1, link) else re.findall(pattern2, link)[0] if re.findall(pattern2, link) else re.findall(pattern3, link)[0]
     cookies = {
         "PREF": "f4=4000000&f6=40000000&tz=Europe.Warsaw&f5=30000&f7=100",
         "CONSENT": "PENDING+915"
     }
-    headers = {
-    'authority': 'www.youtube.com',
-    'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-    'accept-language': 'en-US,en;q=0.5',
-    'cache-control': 'max-age=0',
-    'sec-ch-ua': '"Not/A)Brand";v="99", "Brave";v="115", "Chromium";v="115"',
-    'sec-ch-ua-mobile': '?0',
-    'sec-ch-ua-model': '""',
-    'sec-ch-ua-platform': '"Windows"',
-    'sec-ch-ua-platform-version': '"10.0.0"',
-    'sec-fetch-dest': 'document',
-    'sec-fetch-mode': 'navigate',
-    'sec-fetch-site': 'none',
-    'sec-fetch-user': '?1',
-    'sec-gpc': '1',
-    'service-worker-navigation-preload': 'true',
-    'upgrade-insecure-requests': '1',
-    'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36',
-}
-    async with aiohttp.ClientSession() as session:
-        async with session.get(f'https://youtube.com/watch?v={videoid}', cookies=cookies, headers=headers) as r:
-            rtext = await r.text(encoding='utf-8')
-    logging.info(f'https://youtube.com/watch?v={videoid}')
-    pattern = r'var ytInitialPlayerResponse = (.*?\"nanos\":(?:\d+)}}}})'
-    matches = re.findall(pattern, rtext, re.DOTALL)
-    try:
-        matches: str = matches[0]
-    except IndexError:
-        logging.info('var ytInitialPlayerResponse' in rtext)
-        raise someerror(f"idk")
-    webjson = json.loads(matches)
+    webjson, videoid, basejslink = await getwebjson(link, cookies)
+    if not webjson:
+        raise someerror("idk")
 
     needlogin = False
     info: dict = {}
@@ -61,14 +31,13 @@ async def getinfo(link: str, verbose: bool = False, manifest: bool = False, prem
             info2[str(index)] = i
     except KeyError:
         logging.debug(webjson['playabilityStatus'].get('status'))
-        if webjson['playabilityStatus'].get('status') == 'LOGIN_REQUIRED':
-            logging.info('age restricted video, using login details...')
+        if checkrestricted(webjson):
+            logging.info('age restricted video, using login details for api requests...')
             try:
                 import env
             except ModuleNotFoundError:
                 logging.info('do python createenv.py and read github docs')
                 sys.exit()
-            
             logcookies = {
                 'SID': env.SID,
                 'HSID': env.HSID,
@@ -109,9 +78,9 @@ async def getinfo(link: str, verbose: bool = False, manifest: bool = False, prem
                     'client': {
                         'hl': 'en',
                         'gl': 'PL',
-                        'userAgent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36,gzip(gfe)',
+                        'userAgent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36',
                         'clientName': 'WEB',
-                        'clientVersion': '2.20230809.00.00',
+                        'clientVersion': '2.20231030.04.00',
                         'acceptHeader': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
                     },
                     'user': {
@@ -137,7 +106,6 @@ async def getinfo(link: str, verbose: bool = False, manifest: bool = False, prem
                 json=logjson_data,
             )
             
-
             try:
                 webjson = json.loads(r2.text)
             except:
@@ -158,10 +126,6 @@ async def getinfo(link: str, verbose: bool = False, manifest: bool = False, prem
         os.mkdir('videoinfo')
     with open('videoinfo/otherinfo.json', 'w') as f1:
         json.dump(otherinfo, f1)
-    the = rtext.find("base.js")
-    the2 = rtext[the-43:the+7]
-    logging.debug(f'found base.js: https://youtube.com{the2}')
-    basejslink = f'https://youtube.com{the2}'
     headers = {
         'authority': 'www.youtube.com',
         'accept': '*/*',

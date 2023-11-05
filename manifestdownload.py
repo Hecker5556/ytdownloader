@@ -28,7 +28,7 @@ async def manifestdownload(manifest: dict, verbose: bool = False, audioonly: boo
                 async with aiofiles.open(filename, 'wb') as f1:
                     async with session.get(URL(url, encoded=True), timeout=10) as r:
                         if r.status != 200 and r.status != 206:
-                            logging.debug('bad status code, waiting for 2 seconds')
+                            logging.debug(f'bad status code, waiting for 2 seconds: {r.status}')
                             await asyncio.sleep(2)
                             continue
                         while True:
@@ -39,7 +39,7 @@ async def manifestdownload(manifest: dict, verbose: bool = False, audioonly: boo
                             progress.update(len(chunk))
                         break
             except asyncio.exceptions.TimeoutError:
-                logging.debug("timedout, trying again for filename: ", filename)
+                logging.debug(f"timedout, trying again for filename: {filename}")
                 continue
             except Exception as e:
                 logging.debug(str(e) + '\n\n' + url)
