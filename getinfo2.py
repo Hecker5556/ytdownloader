@@ -5,6 +5,7 @@ from decipher import decrypt
 from getjsfunctions import getfunctions
 from datetime import datetime
 from checkrestricted import checkrestricted, getwebjson
+from dashmanifestdownload import extractinfo
 class someerror(Exception):
     def __init__(self, *args: object) -> None:
         super().__init__(*args)
@@ -23,6 +24,7 @@ async def getinfo(link: str, verbose: bool = False, manifest: bool = False,
 
     needlogin = False
     info: dict = {}
+    from pprint import pprint
     try:
         for index, i in enumerate(webjson['streamingData']['adaptiveFormats']):
             info[str(index)] = i
@@ -162,30 +164,54 @@ async def getinfo(link: str, verbose: bool = False, manifest: bool = False,
                      'mergednosig': {},
                      'mergedsig': {},
                      'unmergedsig': {}}
-    def sortdictbysize(name: str):
-        sortedthe = dict(sorted(allinks[name].items(), key=lambda x: int(x[1]['contentLength']), reverse=True))
-        sortedthe = {str(idx): item for idx, item in enumerate(sortedthe.values())}
-        allinks[name] = sortedthe
+    async def sortdictbysize(name: str):
+        tempdict = {}
+        for key, value in allinks[name].items():
+            try:
+                tempdict[key] = int(value["contentLength"])
+            except Exception as e:
+                logging.debug(f"some error occured when sorting key {key}: {e}")
+                if value.get("type"):
+                    logging.debug("its dash manifest, extracting its info now...")
+                value = await extractinfo(value)
+                tempdict[key] = int(value["contentLength"])
+
+        newdict = {}
+        arr = list(tempdict.items())
+        for i in range(len(tempdict.keys())):
+            minindex = i
+            for j in range(i, len(tempdict.keys())):
+                if arr[j][1] < arr[minindex][1]:
+                    minindex = j
+            arr[i], arr[minindex] = arr[minindex], arr[i]
+        for key, value in arr:
+            newdict[key] = value
+
+        tempdict = {}
+        for index, key in enumerate(reversed(newdict.keys())):
+            tempdict[str(index)] = allinks[name][key]
+
+        allinks[name] = tempdict
     if info.get('0'):
         if info.get('0').get('signatureCipher'):
             logging.debug('found unmerged with signatures from web')
             allinks['unmergedsig'] = info
-            sortdictbysize("unmergedsig")
+            await sortdictbysize("unmergedsig")
         elif info.get('0').get('url'):
             allinks['unmergednosig'] = info
             logging.debug('found unmerged no signatures from web')
-            sortdictbysize("unmergednosig")
+            await sortdictbysize("unmergednosig")
         if info2.get('0').get('signatureCipher'):
             logging.debug('found merged with signatures from web')
             allinks['mergedsig'] = info2
             try:
-                sortdictbysize("mergedsig")
+                await sortdictbysize("mergedsig")
             except:
                 pass
         elif info2.get('0').get('url'):
             logging.debug('found merged no signatures from web')
             try:
-                sortdictbysize("mergednosig")
+                await sortdictbysize("mergednosig")
             except:
                 pass
     else:
@@ -258,7 +284,7 @@ async def getinfo(link: str, verbose: bool = False, manifest: bool = False,
                         r = requests.get(i.get('url'), stream=True)
                         contentlength = r.headers.get('content-length')
                         allinks['mergednosig'][str(index)]['contentLength'] = contentlength
-                    sortdictbysize('mergednosig')
+                    await sortdictbysize('mergednosig')
             else:
                 if value.get('streamingData').get('formats')[0].get('signatureCipher'):
                     logging.debug('found merged formats signatured' + key)
@@ -275,51 +301,38 @@ async def getinfo(link: str, verbose: bool = False, manifest: bool = False,
                             contentLength = r.headers.get('content-length')
                             allinks['mergedsig'][str(index)]['contentLength'] = contentLength
                             allinks['mergedsig'][str(index)]['url'] = url
-                        sortdictbysize('mergedsig')
+                        await sortdictbysize('mergedsig')
         if value.get('streamingData').get('adaptiveFormats'):
-            if value.get('streamingData').get('adaptiveFormats')[0].get('url') and not info['0'].get('url'):
-                logging.debug('found unmerged formats no signature ' + key)
-                for i in range(len(value.get('streamingData').get('adaptiveFormats'))):
-                    allinks['unmergednosig'][(str(i))] = value.get('streamingData').get('adaptiveFormats')[i]
-                sortdictbysize('unmergednosig')
-            elif value.get('streamingData').get('adaptiveFormats')[0].get('signatureCipher') and not info['0'].get('signatureCipher'):
-                logging.debug('found unmerged formats with signature ' + key)
-                for i in range(len(value.get('streamingData').get('adaptiveFormats'))):
-                    allinks['unmergedsig'][(str(i))] = value.get('streamingData').get('adaptiveFormats')[i]
-                logging.debug("sorting unmergedsig")
-                sortdictbysize('unmergedsig')
-            elif info['0'].get('url'):
-                segmentcount = None
-                for k, v in allinks['unmergednosig'].items():
-                    async with aiohttp.ClientSession() as session:
-                        if not v.get('contentLength'):
-                                async with session.get(v.get('url')) as r:
-                                    if r.headers.get('content-length'):
-                                        v['contentLength'] = r.headers.get('content-length')
-                                        allinks['unmergednosig'][k] = v
+            try:
+                if value.get('streamingData').get('adaptiveFormats')[0].get('url') and not info['0'].get('url'):
+                    logging.debug('found unmerged formats no signature ' + key)
+                    for i in range(len(value.get('streamingData').get('adaptiveFormats'))):
+                        allinks['unmergednosig'][(str(i))] = value.get('streamingData').get('adaptiveFormats')[i]
+                    await sortdictbysize('unmergednosig')
+
+                elif value.get('streamingData').get('adaptiveFormats')[0].get('signatureCipher') and not info['0'].get('signatureCipher'):
+                    logging.debug('found unmerged formats with signature ' + key)
+                    for i in range(len(value.get('streamingData').get('adaptiveFormats'))):
+                        allinks['unmergedsig'][(str(i))] = value.get('streamingData').get('adaptiveFormats')[i]
+                    logging.debug("sorting unmergedsig")
+                    await sortdictbysize('unmergedsig')
+                elif info['0'].get('url'):
+                    segmentcount = None
+                    for k, v in allinks['unmergednosig'].items():
+                        async with aiohttp.ClientSession() as session:
+                            if not v.get('contentLength'):
+                                    async with session.get(v.get('url')) as r:
+                                        if r.headers.get('content-length'):
+                                            v['contentLength'] = r.headers.get('content-length')
+                                            allinks['unmergednosig'][k] = v
 
 
-                        if v.get('type') == 'FORMAT_STREAM_TYPE_OTF':
-                            if not segmentcount:
-                                r = requests.get(f'{v["url"]}&sq=0', stream=True)
-                                pattern = r'Segment-Count: (.*?)\n'
-                                response1 = r.content
-                                if re.findall(pattern, response1.decode('unicode_escape')):
-                                    v['segments'] = re.findall(pattern, response1.decode('unicode_escape'))[0].rstrip()
-                                    allinks['unmergednosig'][k] = v
-                                    segmentcount = re.findall(pattern, response1.decode('unicode_escape'))[0].rstrip()
-                            else:
-                                v['segments'] = segmentcount
-                                allinks['unmergednosig'][k] = v
-                            r = requests.get(v.get('url') + '&sq=1', stream=True)
-                            length = len(r.content)
-                            totalsize = int(length) * int(segmentcount)
-                            v['contentLength'] = totalsize
-                            allinks['unmergednosig'][k] = v
-
-                sortdictbysize('unmergednosig')
-            elif info['0'].get('signatureCipher'):
-                sortdictbysize('unmergedsig')
+                    await sortdictbysize('unmergednosig')
+                elif info['0'].get('signatureCipher'):
+                    await sortdictbysize('unmergedsig')
+            except Exception as e:
+                print(e)
+                print(info)
         # pprint(value.get('streamingData').get('formats') if value.get('streamingData').get('formats') else 'no premerged formats')
 
     # pprint(allinks, sort_dicts=False, indent=4)

@@ -84,7 +84,7 @@ class ytdownload:
                  premerged: bool = False, codec: str = None, 
                  nodownload: bool = False, priority: str = None, 
                  audioonly: bool = False, mp3audio: bool = False,
-                 itag: int = None, onlyitag: bool = True, filename: str = None,
+                 itag: int = None, onlyitag: bool = False, filename: str = None,
                  start: str = None, end: str = None,
                  overwrite: bool = False, dontoverwrite: bool = True):
         """
@@ -593,7 +593,7 @@ class ytdownload:
                     if video:
                         if not onlyitag:
                             for key, value in links['unmergedsig'].items():
-                                if 'audio' in value.get('mimeType'):
+                                if 'audio' in value.get('mimeType') and value.get('mimeType').split(';')[0].split('/')[1] in video.get('mimeType'):
                                     audio = value
                                     break
                             logging.info(f'pairing itag {itag}({video.get("itag")} with audio itag {audio.get("itag")})')
@@ -607,7 +607,7 @@ class ytdownload:
                         audioonly = True
                         if not onlyitag:
                             for key, value in links['unmergedsig'].items():
-                                if 'video' in value.get('mimeType'):
+                                if 'video' in value.get('mimeType') and value.get('mimeType').split(';')[0].split('/')[1] in audio.get('mimeType'):
                                     video = value
                                     break
                             logging.info(f'pairing itag {itag}({video.get("itag")} with audio itag {audio.get("itag")})')
@@ -620,7 +620,7 @@ class ytdownload:
                 if links['unmergednosig'] != {} and not video and not audio:
                     for key, value in links['unmergednosig'].items():
                         if int(value.get('itag')) == itag:
-                            logging.info(f'found unmerged no sig video with itag {itag}')
+                            logging.info(f'found unmerged no sig with itag {itag}')
                             if 'video' in value.get('mimeType'):
                                 video = value
                             else:
@@ -629,7 +629,7 @@ class ytdownload:
                     if video:
                         if not onlyitag:
                             for key, value in links['unmergednosig'].items():
-                                if 'audio' in value.get('mimeType'):
+                                if 'audio' in value.get('mimeType') and value.get('mimeType').split(';')[0].split('/')[1] in video.get('mimeType'):
                                     audio = value
                                     break
                             logging.info(f'paring itag {itag}({video.get("itag")} with audio itag {audio.get("itag")})')
@@ -642,7 +642,7 @@ class ytdownload:
                     elif audio:
                         audioonly = True
                         if not onlyitag:
-                            for key, value in links['unmergednosig'].items():
+                            for key, value in links['unmergednosig'].items() and value.get('mimeType').split(';')[0].split('/')[1] in audio.get('mimeType'):
                                 if 'video' in value.get('mimeType'):
                                     video = value
                                     break
@@ -814,13 +814,17 @@ class ytdownload:
                 result = await ytdownload.merge(video.get('url'), audio.get('url'), video.get('mimeType'), audio.get('mimeType'), verbose=verbose, start=start, end=end)
             elif not audio:
                 logging.debug(f"downloading video only: \n{video.get('url')}")
-                result = await normaldownload(video.get('url', filename=f"merged{round(datetime.now().timestamp())}.{video.get('mimeType').split('/')[1].split(';')[0]}"))
+                if not video.get('type'):
+                    result = await normaldownload(video.get('url'), filename=f"merged{round(datetime.now().timestamp())}.{video.get('mimeType').split('/')[1].split(';')[0]}")
+                else:
+                    result = await dashmanifestdownload.download(video)
+
             else:
                 logging.info('downloading dash manifest')
                 tempvideo = await dashmanifestdownload.download(video)
                 tempaudio = await normaldownload(audio.get('url'), filename=f"merged{round(datetime.now().timestamp())}.{audio.get('mimeType').split('/')[1].split(';')[0] if audio.get('mimeType').split('/')[1].split(';')[0] == 'webm' else 'mp3'}")
                 result = f'merged{round(datetime.now().timestamp())}.{tempvideo[0]}', tempvideo[1]
-                subprocess.run(f'ffmpeg -i {tempvideo[0]} -i {tempaudio[0]} -map 0:v:0 -map 1:a:0 -c copy {result[0]}')
+                subprocess.run(f'ffmpeg -i {tempvideo[0]} -i {tempaudio[0]} -map 0:v:0 -map 1:a:0 -c copy -v quiet {result[0]}')
                 os.remove(tempvideo[0])
                 os.remove(tempaudio[0])
         elif premerged and not audioonly:

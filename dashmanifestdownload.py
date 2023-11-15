@@ -1,4 +1,4 @@
-import aiohttp, aiofiles, asyncio, os
+import aiohttp, aiofiles, asyncio, os, re
 from tqdm.asyncio import tqdm
 from datetime import datetime
 async def download(info: dict) -> tuple:
@@ -26,15 +26,31 @@ async def download(info: dict) -> tuple:
             os.remove(file)
     return filename, extension
     
-
-
+async def extractinfo(info: dict) -> dict:
+    async with aiohttp.ClientSession() as session:
+        async with session.get(info['url'] + '&sq=0') as r:
+            pattern = r'Segment-Count: (.*?)\n'
+            response = await r.text(encoding="unicode_escape")
+            if re.findall(pattern, response):
+                info['segments'] = re.findall(pattern, response)[0].rstrip()
+                segmentcount = re.findall(pattern, response)[0].rstrip()
+        async with session.get(info["url"] + "&sq=1") as r:
+            contentlength = r.headers.get("content-length")
+            if not contentlength:
+                print("couldnt get contentlength, maybe manual time?")
+                length = len(await r.content.read())
+            else:
+                length = int(r.headers.get("content-length"))
+            totalsize = length * int(segmentcount)
+            info["contentLength"] = totalsize
+    return info
 
 async def downloadworker(link: str, filename: str, session: aiohttp.ClientSession, progress: tqdm):
 
     while True:
         try:
             async with aiofiles.open(filename, 'wb') as f1:
-                async with session.get(link, timeout=5) as r:
+                async with session.get(link, timeout=10) as r:
                     while True:
                         chunk = await r.content.read(1024)
                         if not chunk:
