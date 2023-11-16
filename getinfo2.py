@@ -166,14 +166,13 @@ async def getinfo(link: str, verbose: bool = False, manifest: bool = False,
                      'unmergedsig': {}}
     async def sortdictbysize(name: str):
         tempdict = {}
+        length = int(otherinfo.get('lengthSeconds'))
         for key, value in allinks[name].items():
             try:
                 tempdict[key] = int(value["contentLength"])
             except Exception as e:
-                logging.debug(f"some error occured when sorting key {key}: {e}")
-                if value.get("type"):
-                    logging.debug("its dash manifest, extracting its info now...")
-                value = await extractinfo(value)
+                logging.debug(f"some error occured when sorting key {key} and name {name}: {e}")
+                value["contentLength"] = (length * value["bitrate"])/8
                 tempdict[key] = int(value["contentLength"])
 
         newdict = {}
