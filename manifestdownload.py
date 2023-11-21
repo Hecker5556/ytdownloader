@@ -64,6 +64,9 @@ async def manifestdownload(manifest: dict, verbose: bool = False, audioonly: boo
                 audiofilenames.append(f'videoinfo/segmenta{index}-{currentdate}.ts')
             progress.close()
             logging.debug("downloaded audio")
+        async with aiofiles.open("videoinfo/filestodelete.txt", "a") as f1:
+            await f1.write("\n".join(videofilenames))
+            await f1.write("\n".join(audiofilenames))
         async with aiofiles.open(f'videoinfo/manvideo-{currentdate}.ts', 'wb') as f1:
             for file in videofilenames:
                 async with aiofiles.open(file, 'rb') as f2:

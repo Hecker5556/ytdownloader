@@ -86,7 +86,8 @@ class ytdownload:
                  audioonly: bool = False, mp3audio: bool = False,
                  itag: int = None, onlyitag: bool = False, filename: str = None,
                  start: str = None, end: str = None,
-                 overwrite: bool = False, dontoverwrite: bool = True):
+                 overwrite: bool = False, dontoverwrite: bool = True,
+                 returnurlonly: bool = False):
         """
         Download YouTube videos and extract information.
         
@@ -127,6 +128,8 @@ class ytdownload:
             start (str, optional): set timestamp at which the video should start HH:MM:SS/MM:SS
 
             end (str, optional): set timestamp at which video should end HH:MM:SS/MM:SS
+            
+            returnurlonly (bool, optional): doesnt download the video, only returns the decypted url
         """
         if premerged and manifest:
             raise ytdownload.theydontmix(f"manifests arent premerged")
@@ -806,7 +809,10 @@ class ytdownload:
                     
 
 
-
+        if returnurlonly:
+            return {'videourl': video.get('url') if video else 'no video',
+                    'audiourl': audio.get('url') if audio else 'no audio',
+                    }
 
         if not manifest and not premerged and not audioonly:
             if not video.get('type'):

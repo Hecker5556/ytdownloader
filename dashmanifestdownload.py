@@ -5,25 +5,32 @@ from getjsfunctions import getfunctions
 from decipher import decrypt
 import logging
 async def download(info: dict) -> tuple:
-    segments = int(info.get('segments'))
+    segments = 0
+    async with aiohttp.ClientSession() as session:
+        async with session.get(info["url"] + "&sq=0") as r:
+            rtext = await r.text(encoding="unicode_escape")
+    pattern = r'Segment-Count: (.*?)\n'
+
+    segments = int(re.findall(pattern, rtext)[0].rstrip())
+    print(segments)
     links = []
     for i in range(segments):
-        links.append(info.get('url') + f'&sq={i}')
+        links.append(f"{info.get('url').rstrip()}&sq={i}")
     extension = 'mp4' if 'avc1' in info.get('mimeType') else 'webm'
+    filename = f'tempvideo{round(datetime.now().timestamp())}.{extension}'
     progress = tqdm(total=int(info.get('contentLength')), unit='iB', unit_scale=True)
-    async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(limit_per_host=10)) as session:
-        tasks = [downloadworker(link, f'videoinfo/segmentv{index}.{extension}', session, progress) for index, link in enumerate(links)]
+    filenames = []
+    for index, link in enumerate(links):
+        filenames.append(f'videoinfo/segmentv{index}-{round(datetime.now().timestamp())}.{extension}')
+    async with aiofiles.open("videoinfo/filestodelete.txt", "a") as f1:
+        await f1.write("\n".join(filenames))
+    threads = asyncio.Semaphore(10)
+    async with aiohttp.ClientSession() as session:
+        tasks = [downloadworker(link, file, session, progress, threads) for index, (link, file) in enumerate(zip(links, filenames))]
         await asyncio.gather(*tasks)
     progress.close()
-    filelist = os.listdir('videoinfo')
-    segmentlist = []
-    filename = f'tempvideo{round(datetime.now().timestamp())}.{extension}'
     async with aiofiles.open(filename, 'wb') as f1:
-        for file in filelist:
-            if file.startswith('segmentv') and file.endswith(extension):
-                segmentlist.append('videoinfo/' + file)
-        segmentlist = sorted(segmentlist, key=lambda x: int(x.split('segmentv')[1].split('.')[0]))
-        for file in segmentlist:
+        for file in filenames:
             async with aiofiles.open(file, 'rb') as f2:
                 await f1.write(await f2.read())
             os.remove(file)
@@ -33,22 +40,28 @@ async def extractinfo(info: dict, length) -> dict:
     info["contentLength"] = length * info["bitrate"]
     return info
 
-async def downloadworker(link: str, filename: str, session: aiohttp.ClientSession, progress: tqdm):
+async def downloadworker(link: str, filename: str, session: aiohttp.ClientSession, progress: tqdm, thread: asyncio.Semaphore):
+    async with thread:
+        while True:
+            total = 0
+            try:
+                async with aiofiles.open(filename, 'wb') as f1:
+                    async with session.get(link, timeout=30) as r:
+                        while True:
+                            chunk = await r.content.read(1024)
+                            if not chunk:
+                                break
+                            await f1.write(chunk)
+                            progress.update(len(chunk))
+                            total += len(chunk)
+                        break
 
-    while True:
-        try:
-            async with aiofiles.open(filename, 'wb') as f1:
-                async with session.get(link, timeout=10) as r:
-                    while True:
-                        chunk = await r.content.read(1024)
-                        if not chunk:
-                            break
-                        await f1.write(chunk)
-                        progress.update(len(chunk))
-                    break
-
-        except asyncio.TimeoutError:
-            continue
+            except asyncio.TimeoutError:
+                print(f"timedout on {filename}\n{link}")
+                totalp = progress.n
+                progress.n = totalp-total
+                total = 0
+                continue
 
 if __name__ == "__main__":
     info = {'itag': 247,
