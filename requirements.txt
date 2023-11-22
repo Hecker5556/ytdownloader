@@ -1,4 +1,5 @@
 aiohttp
+aiosocks
 aiofiles
 tqdm
 urllib3
