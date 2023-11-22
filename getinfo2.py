@@ -6,11 +6,12 @@ from getjsfunctions import getfunctions
 from datetime import datetime
 from checkrestricted import checkrestricted, getwebjson
 from dashmanifestdownload import extractinfo
+from aiohttp_socks import ProxyConnector
 class someerror(Exception):
     def __init__(self, *args: object) -> None:
         super().__init__(*args)
 async def getinfo(link: str, verbose: bool = False, manifest: bool = False, 
-                  premerged: bool = False, nodownload: bool = False):
+                  premerged: bool = False, nodownload: bool = False, proxy: str = None):
     log_level = logging.DEBUG if verbose else logging.INFO
     logging.basicConfig(level=log_level, format="%(levelname)s: %(message)s")
     logging.info('downloading video info')
@@ -18,10 +19,17 @@ async def getinfo(link: str, verbose: bool = False, manifest: bool = False,
         "PREF": "f4=4000000&f6=40000000&tz=Europe.Warsaw&f5=30000&f7=100",
         "CONSENT": "PENDING+915"
     }
-    webjson, videoid, basejslink = await getwebjson(link, cookies)
+    connector = aiohttp.TCPConnector()
+    if proxy:
+        if "socks" in proxy:
+            connector = ProxyConnector.from_url(url=proxy)
+    webjson, videoid, basejslink = await getwebjson(link=link, cookies=cookies, connector=connector, proxy=proxy)
     if not webjson:
-        raise someerror("idk")
-
+        raise someerror("idk, some error or proxy error")
+    proxy = {
+        'http': proxy,
+        'https': proxy
+    }
     needlogin = False
     info: dict = {}
     from pprint import pprint
@@ -99,13 +107,13 @@ async def getinfo(link: str, verbose: bool = False, manifest: bool = False,
                 'racyCheckOk': True,
                 'contentCheckOk': True,
             }
-
+            print(proxy)
             r2 = requests.post(
                 'https://www.youtube.com/youtubei/v1/player',
                 params=logparams,
                 cookies=logcookies,
                 headers=logheaders,
-                json=logjson_data,
+                json=logjson_data, proxies=proxy
             )
             
             try:
@@ -244,10 +252,15 @@ async def getinfo(link: str, verbose: bool = False, manifest: bool = False,
         'key': value.get('apikey') if not needlogin else env.apikey,
         'prettyPrint': 'false',
         }
+        print(proxy)
+
         response = requests.post(
             'https://www.youtube.com/youtubei/v1/player/',
             params=params,
-            json=json_data, cookies=cookies if not needlogin else logcookies, headers=headers if not needlogin else logheaders
+            json=json_data, 
+            cookies=cookies if not needlogin else logcookies, 
+            headers=headers if not needlogin else logheaders,
+            proxies=proxy
         )
         logging.debug(params)
         logging.debug(json_data)

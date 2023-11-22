@@ -1,4 +1,5 @@
 import argparse
+
 from main import ytdownload
 from datetime import datetime
 import traceback, os, asyncio, sys, logging
@@ -26,6 +27,7 @@ parser.add_argument('--end', '-e', type=str, help='at what timestamp should the 
 parser.add_argument('--over-write', '-ow', action='store_true', help='overwrites video if a video with the same title already exists')
 parser.add_argument('--dont-overwrite', '-d', action='store_true', help='doesnt overwrite video if a video with the same title exists, instead adds timestamp')
 parser.add_argument("--url", action="store_true", help="returns only the url")
+parser.add_argument("--proxy", type=str, help="use proxy for all connections")
 args = parser.parse_args()
 class provideinput(Exception):
     def __init__(self, *args: object) -> None:
@@ -63,7 +65,8 @@ try:
                                                 nodownload=args.no_download, priority=args.priority, 
                                                 audioonly=args.audio_only, mp3audio=args.mp3_audio,
                                                 itag=args.itag, onlyitag=args.only_itag, filename=args.file_name, start=args.start,
-                                                end=args.end, overwrite=args.over_write, dontoverwrite=args.dont_overwrite, returnurlonly = args.url))
+                                                end=args.end, overwrite=args.over_write, dontoverwrite=args.dont_overwrite, returnurlonly = args.url,
+                                                proxy=args.proxy))
                     resultdict[index] = result
                     break
                 except ytdownload.noformatsavaliable as e:
@@ -82,7 +85,8 @@ try:
                                                 nodownload=args.no_download, priority=args.priority, 
                                                 audioonly=args.audio_only, mp3audio=args.mp3_audio,
                                                 itag=args.itag, onlyitag=args.only_itag, filename=args.file_name, start=args.start,
-                                                end=args.end, overwrite=args.over_write, dontoverwrite=args.dont_overwrite, returnurlonly = args.url))
+                                                end=args.end, overwrite=args.over_write, dontoverwrite=args.dont_overwrite, returnurlonly = args.url,
+                                                proxy=args.proxy))
                 break
             except ytdownload.noformatsavaliable:
                 logging.info('no formats avaliable at ur requested settings (filesize)')

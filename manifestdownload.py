@@ -6,8 +6,7 @@ import aiohttp, aiofiles
 from yarl import URL
 from tqdm.asyncio import tqdm
 from datetime import datetime
-
-async def manifestdownload(manifest: dict, verbose: bool = False, audioonly: bool = False):
+async def manifestdownload(manifest: dict, verbose: bool = False, audioonly: bool = False, connector = None, proxy = None):
     if not os.path.exists('videoinfo'):
         os.mkdir('videoinfo')
     with open('videoinfo/manifest.txt', 'w') as f1:
@@ -17,16 +16,16 @@ async def manifestdownload(manifest: dict, verbose: bool = False, audioonly: boo
     logging.info('downloading chunked manifest videos...')
     extension = 'mp4' if not audioonly and 'avc1' in manifest.get('CODECS') else 'webm' if not audioonly and 'vp09' in manifest.get('CODECS') else 'mp3'
     if not audioonly:
-        videourls = await getmanifesturls(manifest.get('URL'))
+        videourls = await getmanifesturls(manifest.get('URL'), connector=connector)
         logging.debug(f'\n\nVIDEOURLS LEN {len(videourls)}\n\n')
-    audiourls = await getmanifesturls(manifest.get('AUDIOLINK'))
+    audiourls = await getmanifesturls(manifest.get('AUDIOLINK'), connector=connector)
     logging.debug(f'\n\nAUDIOURLS LEN {len(audiourls)}\n\n')
     totalsize = float(manifest.get('FILESIZE'))*(1024*1024)
-    async def downloadmanifest(url: str, filename: str, progress, session: aiohttp.ClientSession):
+    async def downloadmanifest(url: str, filename: str, progress, session: aiohttp.ClientSession, proxy = None):
         while True:
             try:
                 async with aiofiles.open(filename, 'wb') as f1:
-                    async with session.get(URL(url, encoded=True), timeout=10) as r:
+                    async with session.get(URL(url, encoded=True), timeout=10,) as r:
                         if r.status != 200 and r.status != 206:
                             logging.debug(f'bad status code, waiting for 2 seconds: {r.status}')
                             await asyncio.sleep(2)
@@ -50,7 +49,7 @@ async def manifestdownload(manifest: dict, verbose: bool = False, audioonly: boo
         # threads = asyncio.Semaphore(5)
         logging.debug('downloading ')
         progress = tqdm(total=totalsize, unit='iB', unit_scale=True)
-        async with aiohttp.ClientSession() as session:
+        async with aiohttp.ClientSession(connector=connector) as session:
             videofilenames = []
             audiofilenames = []
             logging.debug("downloading video")
@@ -79,7 +78,7 @@ async def manifestdownload(manifest: dict, verbose: bool = False, audioonly: boo
     else:
         progress = tqdm(total=None, unit='iB', unit_scale=True)
         audiofilenames = []
-        async with aiohttp.ClientSession() as session:
+        async with aiohttp.ClientSession(connector=connector) as session:
             for index, aurl in enumerate(audiourls):
                 await downloadmanifest(aurl, f'videoinfo/segmenta{index}-{currentdate}.ts', progress, session)
                 audiofilenames.append(f'videoinfo/segmenta{index}-{currentdate}.ts')

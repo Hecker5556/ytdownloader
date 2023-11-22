@@ -1,8 +1,11 @@
 import requests, logging, re, json
-async def getfunctions(link: str, verbose: bool = False):
+async def getfunctions(link: str, verbose: bool = False, proxy = None):
     log_level = logging.DEBUG if verbose else logging.INFO
+    
     logging.basicConfig(level=log_level, format="%(levelname)s: %(message)s")
-    basejs = requests.get(link)
+    basejs = requests.get(link, proxies = {
+        'http': proxy,
+        'https': proxy} if proxy else None)
     sigpattern = r'((.*?)=function\(a\)(.*?)return a.join\(\"\"\)\}\;)'
     sigmatches = re.findall(sigpattern, basejs.text[basejs.text.find('return a.join("")};')-300: basejs.text.find('return a.join("")};') + len('return a.join("")};')])
     functionname = sigmatches[0][1]

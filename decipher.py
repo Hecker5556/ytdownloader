@@ -1,6 +1,6 @@
 from urllib.parse import unquote
 import subprocess, logging, requests, os
-def decrypt(sigurl: str, functions: dict, verbose: bool = False, needlogin: bool = False):
+def decrypt(sigurl: str, functions: dict, verbose: bool = False, needlogin: bool = False, proxy: str = None):
     logging.basicConfig(level = logging.DEBUG if verbose else logging.info)
 
     secondfunction = functions.get('secondfunction')
@@ -57,9 +57,14 @@ def decrypt(sigurl: str, functions: dict, verbose: bool = False, needlogin: bool
                 'x-origin': 'https://www.youtube.com',
                 'x-youtube-bootstrap-logged-in': 'true',
             }
-            r = requests.get(newurl,stream = True, headers=logheaders, cookies=logcookies)
+            r = requests.get(newurl,stream = True, headers=logheaders, cookies=logcookies, proxies = {
+        'http': proxy,
+        'https': proxy} if proxy else None)
         else:
-            r = requests.get(newurl,stream = True, headers=headers)
+            r = requests.get(newurl,stream = True, headers=headers, proxies = {
+        'http': proxy,
+        'https': proxy
+    } if proxy else None)
     
         if r.status_code == 200:
             logging.debug(f'successfully deciphered:\n{signature} --> {deciphered}')

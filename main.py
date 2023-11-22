@@ -1,4 +1,5 @@
 import subprocess, os, logging, re, sys
+import aiohttp
 sys.path.append(os.path.dirname(__file__))
 from getinfo2 import getinfo
 from manifestdownload import manifestdownload
@@ -12,7 +13,8 @@ from datetime import datetime, timedelta
 from prettytable import PrettyTable
 import requests
 import json
-import aiohttp
+
+from aiohttp_socks import ProxyConnector
 
 class ytdownload:
     class invalidtimestamps(Exception):
@@ -24,16 +26,16 @@ class ytdownload:
         def __init__(self, *args: object) -> None:
             super().__init__(*args)
     async def merge(videourl: str, audiourl: str, mimetypevideo: str, mimetypeaudio: str, 
-                    verbose: bool = False, start: str = None, end: str = None,):
+                    verbose: bool = False, start: str = None, end: str = None, connector = None, proxy = None):
         log_level = logging.DEBUG if verbose else logging.INFO
         logging.basicConfig(level=log_level, format="%(levelname)s: %(message)s")
         videoextension = mimetypevideo.split('/')[1].split(';')[0]
         audioextension = mimetypeaudio.split('/')[1].split(';')[0]
         tempvideo = f'tempvideo{round(datetime.now().timestamp())}.{videoextension}'
         tempaudio = f'tempaudio{round(datetime.now().timestamp())}.{audioextension}'
-        video = await normaldownload(videourl, filename=tempvideo)
+        video = await normaldownload(videourl, filename=tempvideo, connector=connector, proxy=proxy)
         logging.debug(f'downloaded video, {video}')
-        audio = await normaldownload(audiourl, filename=tempaudio)
+        audio = await normaldownload(audiourl, filename=tempaudio, connector=connector, proxy=proxy)
         merged = f'merged{round(datetime.now().timestamp())}.{videoextension}'
         logging.debug(f'downloaded audio, {audio}')
         if video and audio:
@@ -87,7 +89,7 @@ class ytdownload:
                  itag: int = None, onlyitag: bool = False, filename: str = None,
                  start: str = None, end: str = None,
                  overwrite: bool = False, dontoverwrite: bool = True,
-                 returnurlonly: bool = False):
+                 returnurlonly: bool = False, proxy: str = None):
         """
         Download YouTube videos and extract information.
         
@@ -131,6 +133,11 @@ class ytdownload:
             
             returnurlonly (bool, optional): doesnt download the video, only returns the decypted url
         """
+        connector = aiohttp.TCPConnector()
+        if proxy:
+            if "socks" in proxy:
+                connector = ProxyConnector.from_url(url=proxy)
+        
         if premerged and manifest:
             raise ytdownload.theydontmix(f"manifests arent premerged")
         if priority:
@@ -175,7 +182,8 @@ class ytdownload:
             raise ytdownload.invalidcodec(f"{codec} isnt a valid video codec, use one of these: ['vp9', 'avc1', 'vp09, 'av01']")
         log_level = logging.DEBUG if verbose else logging.INFO
         logging.basicConfig(level=log_level, format="%(levelname)s: %(message)s - linenumber: %(lineno)d")
-        links, otherinfo, basejslink, needlogin = await getinfo(link, verbose=verbose, manifest=manifest, premerged=premerged, nodownload=nodownload)
+        print(proxy)
+        links, otherinfo, basejslink, needlogin = await getinfo(link, verbose=verbose, manifest=manifest, premerged=premerged, nodownload=nodownload, proxy=proxy)
         if start or end:
             duration = float(links['unmergednosig']['0']['approxDurationMs'])/1000
             begin = None
@@ -212,20 +220,17 @@ class ytdownload:
             for key, value in links['mergedsig'].items():
                 if value.get('contentLength'):
                     continue
-                url = decrypt(value.get('signatureCipher'), functions=functions, verbose=verbose, needlogin=needlogin)
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(url) as r:
+                url = decrypt(value.get('signatureCipher'), functions=functions, verbose=verbose, needlogin=needlogin, proxy=proxy)
+                async with aiohttp.ClientSession(connector=connector) as session:
+                    async with session.get(url,) as r:
 
                         contentLength = r.headers.get('content-length')
                 links['mergedsig'][key]['contentLength'] = contentLength
             for key, value in links['mergednosig'].items():
                 if value.get('contentLength'):
                     continue
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(value.get('url')) as r:
-
-
-                        links['mergednosig'][key]['contentLength'] = r.headers.get('content-length')
+                r = requests.get(value.get('url'), proxies={'http': proxy, 'https': proxy}, stream=True)
+                links['mergednosig'][key]['contentLength'] = r.headers.get('content-length')
             if links['manifest'].get('0'):
                 logging.info('extracting manifest info')
             links['manifest'] = extractmanifest(links['manifest']['0'], nodownload=nodownload, duration=float(links['unmergednosig']['0'].get('approxDurationMs'))/1000) if links['manifest'].get('0') else {}
@@ -381,12 +386,12 @@ class ytdownload:
                 functions = await getfunctions(basejslink, verbose=verbose)
                 if not audioonly:
                     logging.debug(f'deciphering itag: {video.get("itag")}')
-                    video['url'] = decrypt(video.get('signatureCipher'), functions, verbose=verbose, needlogin=needlogin)
+                    video['url'] = decrypt(video.get('signatureCipher'), functions, verbose=verbose, needlogin=needlogin, proxy=proxy)
                 logging.debug(f'deciphering itag: {audio.get("itag")}')
-                audio['url'] = decrypt(audio.get('signatureCipher'), functions, verbose=verbose, needlogin=needlogin)
-                async with aiohttp.ClientSession() as session:
+                audio['url'] = decrypt(audio.get('signatureCipher'), functions, verbose=verbose, needlogin=needlogin, proxy=proxy)
+                async with aiohttp.ClientSession(connector=connector) as session:
                     from yarl import URL
-                    async with session.get(URL(audio.get('url'), encoded=True)) as response:
+                    async with session.get(URL(audio.get('url'), encoded=True), ) as response:
                         if response.status == 403:
                             done = False
                             video = None
@@ -579,7 +584,7 @@ class ytdownload:
                                 break
                         if video:
                             functions = await getfunctions(basejslink, verbose=verbose)
-                            video['url'] = decrypt(video.get('signatureCipher'), functions, verbose=verbose, needlogin=needlogin)
+                            video['url'] = decrypt(video.get('signatureCipher'), functions, verbose=verbose, needlogin=needlogin, proxy=proxy)
                     if not video:
                         raise ytdownload.noformatsavaliable(f"Idk i couldnt find the formats u want")
 
@@ -602,9 +607,9 @@ class ytdownload:
                             logging.info(f'pairing itag {itag}({video.get("itag")} with audio itag {audio.get("itag")})')
                         logging.debug('getting functions')
                         functions = await getfunctions(basejslink, verbose=verbose)
-                        video['url'] = decrypt(video.get('signatureCipher'), functions, verbose=verbose, needlogin=needlogin)
+                        video['url'] = decrypt(video.get('signatureCipher'), functions, verbose=verbose, needlogin=needlogin, proxy=proxy)
                         if not onlyitag:
-                            audio['url'] = decrypt(audio.get('signatureCipher'), functions, verbose=verbose, needlogin=needlogin)
+                            audio['url'] = decrypt(audio.get('signatureCipher'), functions, verbose=verbose, needlogin=needlogin, proxy=proxy)
                         logging.debug('got decrypted')
                     elif audio:
                         audioonly = True
@@ -617,8 +622,8 @@ class ytdownload:
                         logging.debug('getting functions')
                         functions = await getfunctions(basejslink, verbose=verbose)
                         if not onlyitag:
-                            video['url'] = decrypt(video.get('signatureCipher'), functions, verbose=verbose, needlogin=needlogin)
-                        audio['url'] = decrypt(audio.get('signatureCipher'), functions, verbose=verbose, needlogin=needlogin)
+                            video['url'] = decrypt(video.get('signatureCipher'), functions, verbose=verbose, needlogin=needlogin, proxy=proxy)
+                        audio['url'] = decrypt(audio.get('signatureCipher'), functions, verbose=verbose, needlogin=needlogin, proxy=proxy)
                         logging.debug('got decrypted')
                 if links['unmergednosig'] != {} and not video and not audio:
                     for key, value in links['unmergednosig'].items():
@@ -708,10 +713,10 @@ class ytdownload:
                     functions = await getfunctions(basejslink, verbose=verbose)
                     if not audioonly:
                         logging.debug(f'deciphering itag: {video.get("itag")}')
-                        video['url'] = decrypt(video.get('signatureCipher'), functions, verbose=verbose, needlogin=needlogin)
+                        video['url'] = decrypt(video.get('signatureCipher'), functions, verbose=verbose, needlogin=needlogin, proxy=proxy)
                     logging.debug(f'deciphering itag: {audio.get("itag")}')
-                    audio['url'] = decrypt(audio.get('signatureCipher'), functions, verbose=verbose, needlogin=needlogin)
-                    async with aiohttp.ClientSession() as session:
+                    audio['url'] = decrypt(audio.get('signatureCipher'), functions, verbose=verbose, needlogin=needlogin, proxy=proxy)
+                    async with aiohttp.ClientSession(connector=connector) as session:
                         from yarl import URL
                         async with session.get(URL(audio.get('url'), encoded=True)) as response:
                             if response.status == 403:
@@ -784,7 +789,7 @@ class ytdownload:
                     logging.debug('getting javascript functions')
                     functions = await getfunctions(basejslink, verbose=verbose)
                     logging.debug(f'deciphering itag: {video.get("itag")}')
-                    video['url'] = decrypt(video.get('signatureCipher'), functions, verbose=verbose, needlogin=needlogin)
+                    video['url'] = decrypt(video.get('signatureCipher'), functions, verbose=verbose, needlogin=needlogin, proxy=proxy)
                 else:
                     logging.info('no merged formats found?')
                     raise ytdownload.someerror(f'bruh idk')
@@ -817,25 +822,27 @@ class ytdownload:
         if not manifest and not premerged and not audioonly:
             if not video.get('type'):
                 logging.debug(f"downloading video \n{video.get('url')}\n audio \n {audio.get('url')}")
-                result = await ytdownload.merge(video.get('url'), audio.get('url'), video.get('mimeType'), audio.get('mimeType'), verbose=verbose, start=start, end=end)
+                result = await ytdownload.merge(video.get('url'), audio.get('url'), video.get('mimeType'), audio.get('mimeType'), verbose=verbose, start=start, end=end, connector=connector, proxy=proxy)
             elif not audio:
                 logging.debug(f"downloading video only: \n{video.get('url')}")
                 if not video.get('type'):
-                    result = await normaldownload(video.get('url'), filename=f"merged{round(datetime.now().timestamp())}.{video.get('mimeType').split('/')[1].split(';')[0]}")
+                    result = await normaldownload(video.get('url'), filename=f"merged{round(datetime.now().timestamp())}.{video.get('mimeType').split('/')[1].split(';')[0]}", connector=connector, proxy=proxy)
                 else:
-                    result = await dashmanifestdownload.download(video)
+                    result = await dashmanifestdownload.download(video, connector=connector, proxy=proxy)
 
             else:
                 logging.info('downloading dash manifest')
-                tempvideo = await dashmanifestdownload.download(video)
-                tempaudio = await normaldownload(audio.get('url'), filename=f"merged{round(datetime.now().timestamp())}.{audio.get('mimeType').split('/')[1].split(';')[0] if audio.get('mimeType').split('/')[1].split(';')[0] == 'webm' else 'mp3'}")
+                tempvideo = await dashmanifestdownload.download(video, connector=connector, proxy=proxy)
+                tempaudio = await normaldownload(audio.get('url'), filename=f"merged{round(datetime.now().timestamp())}.{audio.get('mimeType').split('/')[1].split(';')[0] if audio.get('mimeType').split('/')[1].split(';')[0] == 'webm' else 'mp3'}", 
+                                                 onnector=connector, proxy=proxy)
                 result = f'merged{round(datetime.now().timestamp())}.{tempvideo[1]}', tempvideo[1]
                 subprocess.run(f'ffmpeg -i {tempvideo[0]} -i {tempaudio[0]} -map 0:v:0 -map 1:a:0 -c copy -v quiet {result[0]}'.split())
                 os.remove(tempvideo[0])
                 os.remove(tempaudio[0])
         elif premerged and not audioonly:
             logging.debug(f"downloading video \n{video.get('url')}")
-            result = await normaldownload(video.get('url'), filename=f"merged{round(datetime.now().timestamp())}.{video.get('mimeType').split('/')[1].split(';')[0]}")
+            result = await normaldownload(video.get('url'), filename=f"merged{round(datetime.now().timestamp())}.{video.get('mimeType').split('/')[1].split(';')[0]}", 
+                                          connector=connector, proxy=proxy)
             if start or end:
                 subprocess.run(f'ffmpeg -i {result[0]} {"-ss "+start if start else ""} {"-to "+end if end else ""} -c copy temp.{result[1]}'.split(), check=True)
                 os.remove(result[0])
@@ -843,7 +850,7 @@ class ytdownload:
 
         elif manifest and not audioonly:
             logging.info(f'downloading manifest: {manifestvideo.get("BANDWIDTH")} {manifestvideo.get("RESOLUTION")} {manifestvideo.get("FILESIZE")}mb')
-            result = await manifestdownload(manifestvideo, verbose=verbose)
+            result = await manifestdownload(manifestvideo, verbose=verbose, connector=connector, proxy=proxy)
             if start or end:
                 subprocess.run(f'ffmpeg -i {result[0]} {"-ss "+start if start else ""} {"-to "+end if end else ""} -c copy temp.{result[1]}'.split(), check=True)
                 os.remove(result[0])
@@ -851,19 +858,19 @@ class ytdownload:
         elif audioonly:
             if not manifest:
                 if mp3audio:
-                    result = await normaldownload(audio.get('url'), filename=f'merged{round(datetime.now().timestamp())}.mp3')
+                    result = await normaldownload(audio.get('url'), filename=f'merged{round(datetime.now().timestamp())}.mp3', connector=connector, proxy=proxy)
                     filenamea = f'temp{round(datetime.now().timestamp())}.mp3'
                     os.rename(result[0], filenamea)
                     subprocess.run(f'ffmpeg -i {filenamea} -v quiet -b:a {audio.get("bitrate")} {result[0]}'.split())
                     os.remove(filenamea)
                 else:
-                    result = await normaldownload(audio.get('url'), filename=f"merged{round(datetime.now().timestamp())}.{audio.get('mimeType').split('/')[1].split(';')[0] if audio.get('mimeType').split('/')[1].split(';')[0] == 'webm' else 'mp3'}")
+                    result = await normaldownload(audio.get('url'), filename=f"merged{round(datetime.now().timestamp())}.{audio.get('mimeType').split('/')[1].split(';')[0] if audio.get('mimeType').split('/')[1].split(';')[0] == 'webm' else 'mp3'}", connector=connector, proxy=proxy)
                 if start or end:
                     subprocess.run(f'ffmpeg -i {result[0]} {"-ss "+start if start else ""} {"-to "+end if end else ""} -c copy temp.{result[1]}'.split(), check=True)
                     os.remove(result[0])
                     os.rename(f'temp.{result[1]}', result[0])
             else:
-                result = await manifestdownload(manifestvideo, audioonly=True, verbose=verbose)
+                result = await manifestdownload(manifestvideo, audioonly=True, verbose=verbose, connector=connector, proxy=proxy)
                 if start or end:
                     subprocess.run(f'ffmpeg -i {result[0]} {"-ss "+start if start else ""} {"-to "+end if end else ""} -c copy temp.{result[1]}'.split(), check=True)
                     os.remove(result[0])

@@ -1,7 +1,13 @@
-import re, aiohttp, logging, json
+import re, aiohttp, logging, json, aiohttp_socks
+from aiohttp_socks import ProxyConnector
 def checkrestricted(webjson: dict):
     return True if webjson['playabilityStatus'].get('status') == 'LOGIN_REQUIRED' else False
-async def getwebjson(link: str, cookies: dict, headers: dict = None):
+async def getwebjson(link: str, cookies: dict, headers: dict = None, connector: aiohttp.TCPConnector | ProxyConnector = None, proxy: str = None):
+    connector = aiohttp.TCPConnector()
+    if proxy:
+        if "socks" in proxy:
+            connector = ProxyConnector.from_url(url=proxy)
+
     pattern1 = r'(?:https?://)?(?:www\.)?(?:m\.)?youtube\.com/watch\?v=([\w-]+)'
     pattern2 = r'(?:https?://)?(?:www\.)?(?:m\.)?youtu\.be\/([\w-]+)'
     pattern3 = r'(?:https?://)?(?:www\.)?(?:m\.)?youtube\.com/shorts/([\w-]+)(?:\?feature=[\w]+)?'
@@ -26,7 +32,7 @@ async def getwebjson(link: str, cookies: dict, headers: dict = None):
             'upgrade-insecure-requests': '1',
             'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36',
         }
-    async with aiohttp.ClientSession() as session:
+    async with aiohttp.ClientSession(connector=connector) as session:
         async with session.get(f'https://youtube.com/watch?v={videoid}', cookies=cookies, headers=headers) as r:
             rtext = await r.text(encoding='utf-8')
     print(r.cookies)
