@@ -67,7 +67,7 @@ try:
                                                 itag=args.itag, onlyitag=args.only_itag, filename=args.file_name, start=args.start,
                                                 end=args.end, overwrite=args.over_write, dontoverwrite=args.dont_overwrite, returnurlonly = args.url,
                                                 proxy=args.proxy))
-                    resultdict[index] = result
+                    resultdict[index] = result[0]
                     break
                 except ytdownload.noformatsavaliable as e:
                     print(e)
@@ -131,8 +131,8 @@ try:
 
         print("\n".join(([": ".join((str(key), str(value))) for key, value in resultdict.items()])))
     else:
-        if isinstance(result, dict):
-            print(" ".join(([": ".join((str(key), str(value))) for key, value in result.items()])))
+        if isinstance(result[0], dict):
+            print(" ".join(([": ".join((str(key), str(value))) for key, value in result[0].items()])))
         else:
             pass
 except:

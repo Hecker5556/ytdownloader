@@ -182,7 +182,6 @@ class ytdownload:
             raise ytdownload.invalidcodec(f"{codec} isnt a valid video codec, use one of these: ['vp9', 'avc1', 'vp09, 'av01']")
         log_level = logging.DEBUG if verbose else logging.INFO
         logging.basicConfig(level=log_level, format="%(levelname)s: %(message)s - linenumber: %(lineno)d")
-        print(proxy)
         links, otherinfo, basejslink, needlogin = await getinfo(link, verbose=verbose, manifest=manifest, premerged=premerged, nodownload=nodownload, proxy=proxy)
         if start or end:
             duration = float(links['unmergednosig']['0']['approxDurationMs'])/1000
@@ -266,7 +265,7 @@ class ytdownload:
                 table.add_row(newlist)
             print(table)
 
-            return table
+            return table, otherinfo
         video = None
         audio = None
         manifestvideo = None
@@ -817,7 +816,7 @@ class ytdownload:
         if returnurlonly:
             return {'videourl': video.get('url') if video else 'no video',
                     'audiourl': audio.get('url') if audio else 'no audio',
-                    }
+                    }, otherinfo
 
         if not manifest and not premerged and not audioonly:
             if not video.get('type'):
@@ -921,7 +920,7 @@ class ytdownload:
                     'filesize': str(round(os.path.getsize(filename)/(1024*1024),2)),
                     'bitrate': video.get('bitrate'),
                     'fps': video.get('fps'),
-                    'audioquality': video.get('audioQuality')}
+                    'audioquality': video.get('audioQuality')}, otherinfo
             elif not manifest and audio and not audioonly:
                 maincommand = 'ffprobe -v quiet -print_format json -show_format -show_streams -i '.split()
                 maincommand.append(f"{filename}")
@@ -935,7 +934,7 @@ class ytdownload:
                     'filesize': str(round(os.path.getsize(filename)/(1024*1024),2)),
                     'videobitrate': video.get('bitrate'),
                     'audiobitrate': audio.get('bitrate'),
-                    'fps': video.get('fps')}
+                    'fps': video.get('fps')}, otherinfo
             elif manifest and not audioonly:
                 maincommand = 'ffprobe -v quiet -print_format json -show_format -show_streams -i '.split()
                 maincommand.append(f"{filename}")
@@ -947,7 +946,7 @@ class ytdownload:
                         'audiobitrate': json.loads(subprocess.check_output(maincommand))['streams'][1].get('bit_rate', result[2]),
                         'filesize': str(round(os.path.getsize(filename)/(1024*1024),2)),
                         'bitrate': manifestvideo.get('BANDWIDTH'),
-                        'fps': manifestvideo.get('FRAME-RATE')}
+                        'fps': manifestvideo.get('FRAME-RATE')}, otherinfo
             else:
                 if audioonly and not manifest:
                     thecommand = 'ffprobe -v quiet -print_format json -show_format -show_streams -i'.split()
@@ -957,7 +956,7 @@ class ytdownload:
                             'audioQuality': audio.get('audioQuality'),
                             'filesize': str(round(os.path.getsize(filename)/(1024*1024),2)),
                             'ffprobe bitrate':str(int(json.loads(subprocess.check_output(thecommand))['format'].get('bit_rate'))/1000) +' kbs',
-                            'yt bitrate': str(audio.get('bitrate')) + ' kbs'}
+                            'yt bitrate': str(audio.get('bitrate')) + ' kbs'}, otherinfo
                 if audioonly and manifest:
                     maincommand = 'ffprobe -v quiet -print_format json -show_format -show_streams -i '.split()
                     maincommand.append(f"{filename}")
@@ -966,7 +965,7 @@ class ytdownload:
                             'actualcodec': json.loads(subprocess.check_output(maincommand))['streams'][0]['codec_name'],
                             'filesize': str(round(os.path.getsize(filename)/(1024*1024),2)),
                             'bitrate': json.loads(subprocess.check_output(maincommand))['streams'][0]['bit_rate'],
-                            'audiobitrate': json.loads(subprocess.check_output(maincommand))['streams'][1].get('bit_rate', result[2]),}
+                            'audiobitrate': json.loads(subprocess.check_output(maincommand))['streams'][1].get('bit_rate', result[2]),}, otherinfo
         else:
             raise ytdownload.someerror(f"some error, no result")
 
