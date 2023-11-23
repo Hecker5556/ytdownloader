@@ -22,6 +22,8 @@ async def getinfo(link: str, verbose: bool = False, manifest: bool = False,
     connector = aiohttp.TCPConnector()
     if proxy:
         if "socks" in proxy:
+            if "socks5h" in proxy:
+                proxy = proxy.replace("socks5h", "socks5")
             connector = ProxyConnector.from_url(url=proxy)
     webjson, videoid, basejslink = await getwebjson(link=link, cookies=cookies, connector=connector, proxy=proxy)
     if not webjson:
