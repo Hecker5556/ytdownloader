@@ -6,7 +6,12 @@ async def getwebjson(link: str, cookies: dict, headers: dict = None, connector: 
     connector = aiohttp.TCPConnector()
     if proxy:
         if "socks" in proxy:
-            connector = ProxyConnector.from_url(url=proxy)
+            if "socks5h" in proxy:
+                prox = proxy.replace("socks5h", "socks5")
+                connector = ProxyConnector.from_url(url=prox)
+            else:
+                connector = ProxyConnector.from_url(url=proxy)
+
 
     pattern1 = r'(?:https?://)?(?:www\.)?(?:m\.)?youtube\.com/watch\?v=([\w-]+)'
     pattern2 = r'(?:https?://)?(?:www\.)?(?:m\.)?youtu\.be\/([\w-]+)'
