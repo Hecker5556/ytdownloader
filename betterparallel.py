@@ -1,5 +1,6 @@
 import aiohttp, aiofiles, os, asyncio, logging
 from tqdm.asyncio import tqdm
+from aiohttp_socks import ProxyConnector
 async def betterparallel(link: str, filename: str, connector = None, proxy = None):
     async with aiohttp.ClientSession(connector=connector) as session:
         async with session.get(link,) as response:
@@ -10,6 +11,14 @@ async def betterparallel(link: str, filename: str, connector = None, proxy = Non
     tasks = []
     startbyte = 0
     progress = tqdm(total=totalsize, unit='B', unit_scale=True)
+    connector = aiohttp.TCPConnector()
+    if proxy:
+        if "socks" in proxy:
+            if "socks5h" in proxy:
+                prox = proxy.replace("socks5h", "socks5")
+                connector = ProxyConnector.from_url(url=prox)
+            else:
+                connector = ProxyConnector.from_url(url=proxy)
     async with aiohttp.ClientSession(connector=connector) as session:
         for i in range(chunksize +1):
             endbyte = startbyte + tenmb - 1

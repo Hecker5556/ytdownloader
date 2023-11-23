@@ -6,6 +6,7 @@ import aiohttp, aiofiles
 from yarl import URL
 from tqdm.asyncio import tqdm
 from datetime import datetime
+from aiohttp_socks import ProxyConnector
 async def manifestdownload(manifest: dict, verbose: bool = False, audioonly: bool = False, connector = None, proxy = None):
     if not os.path.exists('videoinfo'):
         os.mkdir('videoinfo')
@@ -15,6 +16,14 @@ async def manifestdownload(manifest: dict, verbose: bool = False, audioonly: boo
     logging.basicConfig(level=logging.DEBUG if verbose else logging.info)
     logging.info('downloading chunked manifest videos...')
     extension = 'mp4' if not audioonly and 'avc1' in manifest.get('CODECS') else 'webm' if not audioonly and 'vp09' in manifest.get('CODECS') else 'mp3'
+    connector = aiohttp.TCPConnector()
+    if proxy:
+        if "socks" in proxy:
+            if "socks5h" in proxy:
+                prox = proxy.replace("socks5h", "socks5")
+                connector = ProxyConnector.from_url(url=prox)
+            else:
+                connector = ProxyConnector.from_url(url=proxy)
     if not audioonly:
         videourls = await getmanifesturls(manifest.get('URL'), connector=connector)
         logging.debug(f'\n\nVIDEOURLS LEN {len(videourls)}\n\n')

@@ -4,8 +4,17 @@ from datetime import datetime
 from getjsfunctions import getfunctions
 from decipher import decrypt
 import logging
+from aiohttp_socks import ProxyConnector
 async def download(info: dict, connector = None, proxy = None) -> tuple:
     segments = 0
+    connector = aiohttp.TCPConnector()
+    if proxy:
+        if "socks" in proxy:
+            if "socks5h" in proxy:
+                prox = proxy.replace("socks5h", "socks5")
+                connector = ProxyConnector.from_url(url=prox)
+            else:
+                connector = ProxyConnector.from_url(url=proxy)
     async with aiohttp.ClientSession(connector=connector) as session:
         async with session.get(info["url"] + "&sq=0") as r:
             rtext = await r.text(encoding="unicode_escape")
