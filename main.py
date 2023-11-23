@@ -137,8 +137,10 @@ class ytdownload:
         if proxy:
             if "socks" in proxy:
                 if "socks5h" in proxy:
-                    proxy = proxy.replace("socks5h", "socks5")
-                connector = ProxyConnector.from_url(url=proxy)
+                    prox = proxy.replace("socks5h", "socks5")
+                    connector = ProxyConnector.from_url(url=prox)
+                else:
+                    connector = ProxyConnector.from_url(url=proxy)
         
         if premerged and manifest:
             raise ytdownload.theydontmix(f"manifests arent premerged")
