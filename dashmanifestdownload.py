@@ -34,6 +34,14 @@ async def download(info: dict, connector = None, proxy = None) -> tuple:
     async with aiofiles.open("videoinfo/filestodelete.txt", "a") as f1:
         await f1.write("\n".join(filenames))
     threads = asyncio.Semaphore(10)
+    connector = aiohttp.TCPConnector()
+    if proxy:
+        if "socks" in proxy:
+            if "socks5h" in proxy:
+                prox = proxy.replace("socks5h", "socks5")
+                connector = ProxyConnector.from_url(url=prox)
+            else:
+                connector = ProxyConnector.from_url(url=proxy)
     async with aiohttp.ClientSession(connector=connector) as session:
         tasks = [downloadworker(link, file, session, progress, threads) for index, (link, file) in enumerate(zip(links, filenames))]
         await asyncio.gather(*tasks)

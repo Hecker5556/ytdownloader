@@ -212,8 +212,9 @@ class ytdownload:
                 raise ytdownload.invalidtimestamps(f"{start if start else 'no start'} and {end if end else 'no end'} are not valid timestamps! They returned a duration of under 0")
             
             thepercent = (duration-customduration) / duration
-            maxsize = round(maxsize * (1 + thepercent))
-            logging.info(f'new maxsize {maxsize}')
+            if maxsize:
+                maxsize = round(maxsize * (1 + thepercent))
+                logging.info(f'new maxsize {maxsize}')
         if nodownload:
             logging.info('writing information into files')
 
@@ -837,7 +838,7 @@ class ytdownload:
                 logging.info('downloading dash manifest')
                 tempvideo = await dashmanifestdownload.download(video, connector=connector, proxy=proxy)
                 tempaudio = await normaldownload(audio.get('url'), filename=f"merged{round(datetime.now().timestamp())}.{audio.get('mimeType').split('/')[1].split(';')[0] if audio.get('mimeType').split('/')[1].split(';')[0] == 'webm' else 'mp3'}", 
-                                                 onnector=connector, proxy=proxy)
+                                                 connector=connector, proxy=proxy)
                 result = f'merged{round(datetime.now().timestamp())}.{tempvideo[1]}', tempvideo[1]
                 subprocess.run(f'ffmpeg -i {tempvideo[0]} -i {tempaudio[0]} -map 0:v:0 -map 1:a:0 -c copy -v quiet {result[0]}'.split())
                 os.remove(tempvideo[0])
