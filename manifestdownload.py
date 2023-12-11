@@ -27,6 +27,14 @@ async def manifestdownload(manifest: dict, verbose: bool = False, audioonly: boo
     if not audioonly:
         videourls = await getmanifesturls(manifest.get('URL'), connector=connector)
         logging.debug(f'\n\nVIDEOURLS LEN {len(videourls)}\n\n')
+    connector = aiohttp.TCPConnector()
+    if proxy:
+        if "socks" in proxy:
+            if "socks5h" in proxy:
+                prox = proxy.replace("socks5h", "socks5")
+                connector = ProxyConnector.from_url(url=prox)
+            else:
+                connector = ProxyConnector.from_url(url=proxy)
     audiourls = await getmanifesturls(manifest.get('AUDIOLINK'), connector=connector)
     logging.debug(f'\n\nAUDIOURLS LEN {len(audiourls)}\n\n')
     totalsize = float(manifest.get('FILESIZE'))*(1024*1024)
@@ -58,6 +66,14 @@ async def manifestdownload(manifest: dict, verbose: bool = False, audioonly: boo
         # threads = asyncio.Semaphore(5)
         logging.debug('downloading ')
         progress = tqdm(total=totalsize, unit='iB', unit_scale=True)
+        connector = aiohttp.TCPConnector()
+        if proxy:
+            if "socks" in proxy:
+                if "socks5h" in proxy:
+                    prox = proxy.replace("socks5h", "socks5")
+                    connector = ProxyConnector.from_url(url=prox)
+                else:
+                    connector = ProxyConnector.from_url(url=proxy)
         async with aiohttp.ClientSession(connector=connector) as session:
             videofilenames = []
             audiofilenames = []
@@ -87,6 +103,14 @@ async def manifestdownload(manifest: dict, verbose: bool = False, audioonly: boo
     else:
         progress = tqdm(total=None, unit='iB', unit_scale=True)
         audiofilenames = []
+        connector = aiohttp.TCPConnector()
+        if proxy:
+            if "socks" in proxy:
+                if "socks5h" in proxy:
+                    prox = proxy.replace("socks5h", "socks5")
+                    connector = ProxyConnector.from_url(url=prox)
+                else:
+                    connector = ProxyConnector.from_url(url=proxy)
         async with aiohttp.ClientSession(connector=connector) as session:
             for index, aurl in enumerate(audiourls):
                 await downloadmanifest(aurl, f'videoinfo/segmenta{index}-{currentdate}.ts', progress, session)
