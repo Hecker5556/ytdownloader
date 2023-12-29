@@ -13,6 +13,8 @@ async def normaldownload(link: str, filename: str, connector = None, proxy = Non
                 connector = ProxyConnector.from_url(url=prox)
             else:
                 connector = ProxyConnector.from_url(url=proxy)
+        else:
+            connector = aiohttp.TCPConnector(proxy=proxy)
     try:
         async with aiohttp.ClientSession(connector=connector) as session:
             async with session.get(link, headers=headers) as response:

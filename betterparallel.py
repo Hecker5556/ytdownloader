@@ -8,7 +8,6 @@ async def betterparallel(link: str, filename: str, connector = None, proxy = Non
     tenmb = 10*1024*1024
     chunksize, remainder = divmod(totalsize, tenmb)
     logging.debug((chunksize, remainder))
-    tasks = []
     startbyte = 0
     progress = tqdm(total=totalsize, unit='B', unit_scale=True)
     connector = aiohttp.TCPConnector()
@@ -19,14 +18,16 @@ async def betterparallel(link: str, filename: str, connector = None, proxy = Non
                 connector = ProxyConnector.from_url(url=prox)
             else:
                 connector = ProxyConnector.from_url(url=proxy)
+        else:
+            connector = aiohttp.TCPConnector(proxy=proxy)
     async with aiohttp.ClientSession(connector=connector) as session:
         for i in range(chunksize +1):
             endbyte = startbyte + tenmb - 1
             if i == chunksize:
                 endbyte += startbyte + remainder -1
-            tasks.append(parallelworker(link=link, filename=filename, startbyte=startbyte, endbyte=endbyte, progress=progress, session=session, proxy=proxy))
+            await parallelworker(link=link, filename=filename, startbyte=startbyte, endbyte=endbyte, progress=progress, session=session, proxy=proxy)
             startbyte = endbyte + 1
-        await asyncio.gather(*tasks)
+        
         progress.close()
     return filename, os.path.splitext(filename)[1].replace('.', '')
 
