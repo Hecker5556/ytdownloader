@@ -36,8 +36,7 @@ async def parallelworker(link:str, filename:str, startbyte: int, endbyte: int, p
     if not os.path.exists(filename):
         async with aiofiles.open(filename, 'w') as f1:
             pass
-    async with aiofiles.open(filename, 'r+b') as f1:
-        await f1.seek(startbyte)
+    async with aiofiles.open(filename, 'ab') as f1:
         async with session.get(link, headers=headers) as response:
             if response.status != 200 and response.status != 206:
                 print('failed to download' + str(response.status))

@@ -63,7 +63,6 @@ async def manifestdownload(manifest: dict, verbose: bool = False, audioonly: boo
         # threads = asyncio.Semaphore(5)
         logging.debug('downloading ')
         progress = tqdm(total=totalsize, unit='iB', unit_scale=True)
-        connector = aiohttp.TCPConnector()
         async with aiohttp.ClientSession(connector=giveconnector(proxy)) as session:
             videofilenames = []
             audiofilenames = []
@@ -93,14 +92,6 @@ async def manifestdownload(manifest: dict, verbose: bool = False, audioonly: boo
     else:
         progress = tqdm(total=None, unit='iB', unit_scale=True)
         audiofilenames = []
-        connector = aiohttp.TCPConnector()
-        if proxy:
-            if "socks" in proxy:
-                if "socks5h" in proxy:
-                    prox = proxy.replace("socks5h", "socks5")
-                    connector = ProxyConnector.from_url(url=prox)
-                else:
-                    connector = ProxyConnector.from_url(url=proxy)
         async with aiohttp.ClientSession(connector=giveconnector(proxy)) as session:
             for index, aurl in enumerate(audiourls):
                 await downloadmanifest(aurl, f'videoinfo/segmenta{index}-{currentdate}.ts', progress, session)

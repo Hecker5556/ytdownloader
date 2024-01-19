@@ -141,7 +141,8 @@ class ytdownload:
                     connector = ProxyConnector.from_url(url=prox)
                 else:
                     connector = ProxyConnector.from_url(url=proxy)
-        
+            else:
+                connector = aiohttp.TCPConnector(proxy=proxy)
         if premerged and manifest:
             raise ytdownload.theydontmix(f"manifests arent premerged")
         if priority:
@@ -848,17 +849,19 @@ class ytdownload:
             result = await normaldownload(video.get('url'), filename=f"merged{round(datetime.now().timestamp())}.{video.get('mimeType').split('/')[1].split(';')[0]}", 
                                           connector=connector, proxy=proxy)
             if start or end:
-                subprocess.run(f'ffmpeg -i {result[0]} {"-ss "+start if start else ""} {"-to "+end if end else ""} -c copy temp.{result[1]}'.split(), check=True)
+                tempfilename = f"temp{round(datetime.now().timestamp)}.{result[1]}"
+                subprocess.run(f'ffmpeg -i {result[0]} {"-ss "+start if start else ""} {"-to "+end if end else ""} -c copy {tempfilename}'.split(), check=True)
                 os.remove(result[0])
-                os.rename(f'temp.{result[1]}', result[0])
+                os.rename(tempfilename, result[0])
 
         elif manifest and not audioonly:
             logging.info(f'downloading manifest: {manifestvideo.get("BANDWIDTH")} {manifestvideo.get("RESOLUTION")} {manifestvideo.get("FILESIZE")}mb')
             result = await manifestdownload(manifestvideo, verbose=verbose, connector=connector, proxy=proxy)
             if start or end:
-                subprocess.run(f'ffmpeg -i {result[0]} {"-ss "+start if start else ""} {"-to "+end if end else ""} -c copy temp.{result[1]}'.split(), check=True)
+                tempfilename = f"temp{round(datetime.now().timestamp)}.{result[1]}"
+                subprocess.run(f'ffmpeg -i {result[0]} {"-ss "+start if start else ""} {"-to "+end if end else ""} -c copy {tempfilename}'.split(), check=True)
                 os.remove(result[0])
-                os.rename(f'temp.{result[1]}', result[0])
+                os.rename(tempfilename, result[0])
         elif audioonly:
             if not manifest:
                 if mp3audio:
@@ -870,15 +873,17 @@ class ytdownload:
                 else:
                     result = await normaldownload(audio.get('url'), filename=f"merged{round(datetime.now().timestamp())}.{audio.get('mimeType').split('/')[1].split(';')[0] if audio.get('mimeType').split('/')[1].split(';')[0] == 'webm' else 'mp3'}", connector=connector, proxy=proxy)
                 if start or end:
-                    subprocess.run(f'ffmpeg -i {result[0]} {"-ss "+start if start else ""} {"-to "+end if end else ""} -c copy temp.{result[1]}'.split(), check=True)
+                    tempfilename = f"temp{round(datetime.now().timestamp)}.{result[1]}"
+                    subprocess.run(f'ffmpeg -i {result[0]} {"-ss "+start if start else ""} {"-to "+end if end else ""} -c copy {tempfilename}'.split(), check=True)
                     os.remove(result[0])
-                    os.rename(f'temp.{result[1]}', result[0])
+                    os.rename(tempfilename, result[0])
             else:
                 result = await manifestdownload(manifestvideo, audioonly=True, verbose=verbose, connector=connector, proxy=proxy)
                 if start or end:
-                    subprocess.run(f'ffmpeg -i {result[0]} {"-ss "+start if start else ""} {"-to "+end if end else ""} -c copy temp.{result[1]}'.split(), check=True)
+                    tempfilename = f"temp{round(datetime.now().timestamp)}.{result[1]}"
+                    subprocess.run(f'ffmpeg -i {result[0]} {"-ss "+start if start else ""} {"-to "+end if end else ""} -c copy {tempfilename}'.split(), check=True)
                     os.remove(result[0])
-                    os.rename(f'temp.{result[1]}', result[0])
+                    os.rename(tempfilename, result[0])
         if result and not filename:
             filename = "".join([x for x in otherinfo.get('title')+f'.{result[1]}' if x not in '"\\/:*?<>|()'])
         elif result and filename:
