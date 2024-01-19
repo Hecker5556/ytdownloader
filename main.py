@@ -849,7 +849,7 @@ class ytdownload:
             result = await normaldownload(video.get('url'), filename=f"merged{round(datetime.now().timestamp())}.{video.get('mimeType').split('/')[1].split(';')[0]}", 
                                           connector=connector, proxy=proxy)
             if start or end:
-                tempfilename = f"temp{round(datetime.now().timestamp)}.{result[1]}"
+                tempfilename = f"temp{round(datetime.now().timestamp())}.{result[1]}"
                 subprocess.run(f'ffmpeg -i {result[0]} {"-ss "+start if start else ""} {"-to "+end if end else ""} -c copy {tempfilename}'.split(), check=True)
                 os.remove(result[0])
                 os.rename(tempfilename, result[0])
@@ -858,7 +858,7 @@ class ytdownload:
             logging.info(f'downloading manifest: {manifestvideo.get("BANDWIDTH")} {manifestvideo.get("RESOLUTION")} {manifestvideo.get("FILESIZE")}mb')
             result = await manifestdownload(manifestvideo, verbose=verbose, connector=connector, proxy=proxy)
             if start or end:
-                tempfilename = f"temp{round(datetime.now().timestamp)}.{result[1]}"
+                tempfilename = f"temp{round(datetime.now().timestamp())}.{result[1]}"
                 subprocess.run(f'ffmpeg -i {result[0]} {"-ss "+start if start else ""} {"-to "+end if end else ""} -c copy {tempfilename}'.split(), check=True)
                 os.remove(result[0])
                 os.rename(tempfilename, result[0])
@@ -873,14 +873,14 @@ class ytdownload:
                 else:
                     result = await normaldownload(audio.get('url'), filename=f"merged{round(datetime.now().timestamp())}.{audio.get('mimeType').split('/')[1].split(';')[0] if audio.get('mimeType').split('/')[1].split(';')[0] == 'webm' else 'mp3'}", connector=connector, proxy=proxy)
                 if start or end:
-                    tempfilename = f"temp{round(datetime.now().timestamp)}.{result[1]}"
+                    tempfilename = f"temp{round(datetime.now().timestamp())}.{result[1]}"
                     subprocess.run(f'ffmpeg -i {result[0]} {"-ss "+start if start else ""} {"-to "+end if end else ""} -c copy {tempfilename}'.split(), check=True)
                     os.remove(result[0])
                     os.rename(tempfilename, result[0])
             else:
                 result = await manifestdownload(manifestvideo, audioonly=True, verbose=verbose, connector=connector, proxy=proxy)
                 if start or end:
-                    tempfilename = f"temp{round(datetime.now().timestamp)}.{result[1]}"
+                    tempfilename = f"temp{round(datetime.now().timestamp())}.{result[1]}"
                     subprocess.run(f'ffmpeg -i {result[0]} {"-ss "+start if start else ""} {"-to "+end if end else ""} -c copy {tempfilename}'.split(), check=True)
                     os.remove(result[0])
                     os.rename(tempfilename, result[0])
