@@ -41,7 +41,7 @@ class ytdownload:
         if video and audio:
             logging.info('successfully downloaded both, merging now')
             try:
-                result = subprocess.run(f'ffmpeg -i {tempvideo} -i {tempaudio} -v quiet -c:v copy {"-c:a copy " if videoextension == audioextension else ""} -map 0:v:0 -map 1:a:0 -y {"-ss "+start if start else ""} {"-to "+end if end else ""} {merged}'.split(), check=True)
+                result = subprocess.run(f'ffmpeg -i {tempvideo} -i {tempaudio} -v error -c:v copy {"-c:a copy " if videoextension == audioextension else ""} -map 0:v:0 -map 1:a:0 -y {"-ss "+start if start else ""} {"-to "+end if end else ""} {merged}'.split(), check=True)
             except Exception as e:
                 print(e)
                 return
@@ -841,7 +841,7 @@ class ytdownload:
                 tempaudio = await normaldownload(audio.get('url'), filename=f"merged{round(datetime.now().timestamp())}.{audio.get('mimeType').split('/')[1].split(';')[0] if audio.get('mimeType').split('/')[1].split(';')[0] == 'webm' else 'mp3'}", 
                                                  connector=connector, proxy=proxy)
                 result = f'merged{round(datetime.now().timestamp())}.{tempvideo[1]}', tempvideo[1]
-                subprocess.run(f'ffmpeg -i {tempvideo[0]} -i {tempaudio[0]} -map 0:v:0 -map 1:a:0 -c copy -v quiet {result[0]}'.split())
+                subprocess.run(f'ffmpeg -i {tempvideo[0]} -i {tempaudio[0]} -map 0:v:0 -map 1:a:0 -c copy -v error {result[0]}'.split())
                 os.remove(tempvideo[0])
                 os.remove(tempaudio[0])
         elif premerged and not audioonly:
@@ -868,7 +868,7 @@ class ytdownload:
                     result = await normaldownload(audio.get('url'), filename=f'merged{round(datetime.now().timestamp())}.mp3', connector=connector, proxy=proxy)
                     filenamea = f'temp{round(datetime.now().timestamp())}.mp3'
                     os.rename(result[0], filenamea)
-                    subprocess.run(f'ffmpeg -i {filenamea} -v quiet -b:a {audio.get("bitrate")} {result[0]}'.split())
+                    subprocess.run(f'ffmpeg -i {filenamea} -v error -b:a {audio.get("bitrate")} {result[0]}'.split())
                     os.remove(filenamea)
                 else:
                     result = await normaldownload(audio.get('url'), filename=f"merged{round(datetime.now().timestamp())}.{audio.get('mimeType').split('/')[1].split(';')[0] if audio.get('mimeType').split('/')[1].split(';')[0] == 'webm' else 'mp3'}", connector=connector, proxy=proxy)
@@ -932,50 +932,101 @@ class ytdownload:
                     'fps': video.get('fps'),
                     'audioquality': video.get('audioQuality')}, otherinfo
             elif not manifest and audio and not audioonly:
-                maincommand = 'ffprobe -v quiet -print_format json -show_format -show_streams -i '.split()
+                maincommand = 'ffprobe -v error -print_format json -show_format -show_streams -i '.split()
                 maincommand.append(f"{filename}")
+                ffprobe_result = subprocess.check_output(maincommand)
+                haserror = False
+                try:
+                    ffprobe_result = json.loads(ffprobe_result)
+                except:
+                    haserror = True
+                    print(ffprobe_result)
+                if not haserror:
+                    audiocodec = ffprobe_result['streams'][1]['codec_name']
+                    audiobitrate = ['streams'][1].get('bit_rate', result[2])
+                else:
+                    audiocodec = "ffprobe error"
+                    audiobitrate = "ffprobe error"
                 return {'filename': filename,
                     'width': video.get('width'),
                     'height': video.get('height'),
                     'audio quality': audio.get('audioQuality'),
                     'video codec': video.get('mimeType'),
                     'original audio codec': audio.get('mimeType'),
-                    'audio codec': json.loads(subprocess.check_output(maincommand))['streams'][1]['codec_name'],
+                    'audio codec': audiocodec,
                     'filesize': str(round(os.path.getsize(filename)/(1024*1024),2)),
                     'videobitrate': video.get('bitrate'),
                     'audiobitrate': audio.get('bitrate'),
                     'fps': video.get('fps')}, otherinfo
             elif manifest and not audioonly:
-                maincommand = 'ffprobe -v quiet -print_format json -show_format -show_streams -i '.split()
+                maincommand = 'ffprobe -v error -print_format json -show_format -show_streams -i '.split()
                 maincommand.append(f"{filename}")
+                ffprobe_result = subprocess.check_output(maincommand)
+                haserror = False
+                try:
+                    ffprobe_result = json.loads(ffprobe_result)
+                except:
+                    haserror = True
+                    print(ffprobe_result)
+                if not haserror:
+                    audiocodec = ffprobe_result['streams'][1]['codec_name']
+                    audiobitrate = ['streams'][1].get('bit_rate', result[2])
+                else:
+                    audiocodec = "ffprobe error"
+                    audiobitrate = "ffprobe error"
                 return {'filename': filename,
                         'width': manifestvideo.get('RESOLUTION').split('x')[0],
                         'height': manifestvideo.get('RESOLUTION').split('x')[1],
                         'codec': manifestvideo.get('CODECS'),
-                        'audiocodec': json.loads(subprocess.check_output(maincommand))['streams'][1]['codec_name'],
-                        'audiobitrate': json.loads(subprocess.check_output(maincommand))['streams'][1].get('bit_rate', result[2]),
+                        'audiocodec': audiocodec,
+                        'audiobitrate': audiobitrate,
                         'filesize': str(round(os.path.getsize(filename)/(1024*1024),2)),
                         'bitrate': manifestvideo.get('BANDWIDTH'),
                         'fps': manifestvideo.get('FRAME-RATE')}, otherinfo
             else:
                 if audioonly and not manifest:
-                    thecommand = 'ffprobe -v quiet -print_format json -show_format -show_streams -i'.split()
+                    thecommand = 'ffprobe -v error -print_format json -show_format -show_streams -i'.split()
                     thecommand.append(f"{filename}")
+                    ffprobe_result = subprocess.check_output(maincommand)
+                    haserror = False
+                    try:
+                        ffprobe_result = json.loads(ffprobe_result)
+                    except:
+                        haserror = True
+                        print(ffprobe_result)
+                    if not haserror:
+                        audiocodec = ffprobe_result['streams'][0]['codec_name']
+                        audiobitrate = ['streams'][0].get('bit_rate', result[2])
+                    else:
+                        audiocodec = "ffprobe error"
+                        audiobitrate = "ffprobe error"
                     return {'filename': filename,
                             'codec': audio.get('mimeType').split('; ')[1],
                             'audioQuality': audio.get('audioQuality'),
                             'filesize': str(round(os.path.getsize(filename)/(1024*1024),2)),
-                            'ffprobe bitrate':str(int(json.loads(subprocess.check_output(thecommand))['format'].get('bit_rate'))/1000) +' kbs',
-                            'yt bitrate': str(audio.get('bitrate')) + ' kbs'}, otherinfo
+                            'ffprobe bitrate': audiobitrate,
+                            'yt bitrate': audio.get('bitrate')}, otherinfo
                 if audioonly and manifest:
-                    maincommand = 'ffprobe -v quiet -print_format json -show_format -show_streams -i '.split()
+                    maincommand = 'ffprobe -v error -print_format json -show_format -show_streams -i '.split()
                     maincommand.append(f"{filename}")
+                    ffprobe_result = subprocess.check_output(maincommand)
+                    haserror = False
+                    try:
+                        ffprobe_result = json.loads(ffprobe_result)
+                    except:
+                        haserror = True
+                        print(ffprobe_result)
+                    if not haserror:
+                        audiocodec = ffprobe_result['streams'][0]['codec_name']
+                        audiobitrate = ['streams'][0].get('bit_rate', result[2])
+                    else:
+                        audiocodec = "ffprobe error"
+                        audiobitrate = "ffprobe error"
                     return {'filename': filename,
                             'codec': manifestvideo.get('CODECS').split(',')[1],
-                            'actualcodec': json.loads(subprocess.check_output(maincommand))['streams'][0]['codec_name'],
+                            'actualcodec': ffprobe_result['streams'][0]['codec_name'] if not haserror else None,
                             'filesize': str(round(os.path.getsize(filename)/(1024*1024),2)),
-                            'bitrate': json.loads(subprocess.check_output(maincommand))['streams'][0]['bit_rate'],
-                            'audiobitrate': json.loads(subprocess.check_output(maincommand))['streams'][1].get('bit_rate', result[2]),}, otherinfo
+                            'audiobitrate': audiobitrate,}, otherinfo
         else:
             raise ytdownload.someerror(f"some error, no result")
 
