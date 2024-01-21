@@ -943,7 +943,7 @@ class ytdownload:
                     print(ffprobe_result)
                 if not haserror:
                     audiocodec = ffprobe_result['streams'][1]['codec_name']
-                    audiobitrate = ['streams'][1].get('bit_rate', None)
+                    audiobitrate = ffprobe_result['streams'][1].get('bit_rate', None)
                 else:
                     audiocodec = "ffprobe error"
                     audiobitrate = "ffprobe error"
@@ -970,7 +970,7 @@ class ytdownload:
                     print(ffprobe_result)
                 if not haserror:
                     audiocodec = ffprobe_result['streams'][1]['codec_name']
-                    audiobitrate = ['streams'][1].get('bit_rate', None)
+                    audiobitrate = ffprobe_result['streams'][1].get('bit_rate', None)
                 else:
                     audiocodec = "ffprobe error"
                     audiobitrate = "ffprobe error"
@@ -996,7 +996,7 @@ class ytdownload:
                         print(ffprobe_result)
                     if not haserror:
                         audiocodec = ffprobe_result['streams'][0]['codec_name']
-                        audiobitrate = ['streams'][0].get('bit_rate', None)
+                        audiobitrate = ffprobe_result['streams'][0].get('bit_rate', None)
                     else:
                         audiocodec = "ffprobe error"
                         audiobitrate = "ffprobe error"
@@ -1018,7 +1018,7 @@ class ytdownload:
                         print(ffprobe_result)
                     if not haserror:
                         audiocodec = ffprobe_result['streams'][0]['codec_name']
-                        audiobitrate = ['streams'][0].get('bit_rate', None)
+                        audiobitrate = ffprobe_result['streams'][0].get('bit_rate', None)
                     else:
                         audiocodec = "ffprobe error"
                         audiobitrate = "ffprobe error"
