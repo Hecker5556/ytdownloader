@@ -86,9 +86,10 @@ if __name__ == '__main__':
             try:
                 sys.setrecursionlimit(5000)
                 main()
+                input("press enter to exit")
             except Exception as e:
                 print(e)
-                input()
+                input("press enter to exit")
     elif sys.platform.startswith('linux'):
         if os.getuid() != 0:
             print('run as admin! (sudo)')

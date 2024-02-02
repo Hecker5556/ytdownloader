@@ -41,7 +41,6 @@ async def getwebjson(link: str, cookies: dict, headers: dict = None, connector: 
     async with aiohttp.ClientSession(connector=connector) as session:
         async with session.get(f'https://youtube.com/watch?v={videoid}', cookies=cookies, headers=headers) as r:
             rtext = await r.text(encoding='utf-8')
-    print(r.cookies)
     logging.info(f'https://youtube.com/watch?v={videoid}')
     pattern = r'var ytInitialPlayerResponse = (.*?\"nanos\":(?:\d+)}}}})'
     matches = re.findall(pattern, rtext, re.DOTALL)

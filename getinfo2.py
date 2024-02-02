@@ -113,7 +113,6 @@ async def getinfo(link: str, verbose: bool = False, manifest: bool = False,
                 'racyCheckOk': True,
                 'contentCheckOk': True,
             }
-            print(proxy)
             r2 = requests.post(
                 'https://www.youtube.com/youtubei/v1/player',
                 params=logparams,
@@ -258,7 +257,6 @@ async def getinfo(link: str, verbose: bool = False, manifest: bool = False,
         'key': value.get('apikey') if not needlogin else env.apikey,
         'prettyPrint': 'false',
         }
-        print(proxy)
 
         response = requests.post(
             'https://www.youtube.com/youtubei/v1/player/',
