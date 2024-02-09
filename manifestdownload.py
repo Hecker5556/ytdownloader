@@ -18,7 +18,7 @@ def giveconnector(proxy):
             connector = ProxyConnector.from_url(url=proxy)
     return connector
         
-async def manifestdownload(manifest: dict, verbose: bool = False, audioonly: bool = False, connector = None, proxy = None):
+async def manifestdownload(manifest: dict, verbose: bool = False, audioonly: bool = False, connector = None, proxy: str = None):
     if not os.path.exists('videoinfo'):
         os.mkdir('videoinfo')
     with open('videoinfo/manifest.txt', 'w') as f1:
@@ -27,7 +27,7 @@ async def manifestdownload(manifest: dict, verbose: bool = False, audioonly: boo
     logging.basicConfig(level=logging.DEBUG if verbose else logging.info)
     logging.info('downloading chunked manifest videos...')
     extension = 'mp4' if not audioonly and 'avc1' in manifest.get('CODECS') else 'webm' if not audioonly and 'vp09' in manifest.get('CODECS') else 'mp3'
- 
+    currentdate = round(datetime.now().timestamp())
     if not audioonly:
         videourls = await getmanifesturls(manifest.get('URL'), connector=connector)
         logging.debug(f'\n\nVIDEOURLS LEN {len(videourls)}\n\n')
@@ -39,7 +39,7 @@ async def manifestdownload(manifest: dict, verbose: bool = False, audioonly: boo
         while True:
             try:
                 async with aiofiles.open(filename, 'wb') as f1:
-                    async with session.get(URL(url, encoded=True), timeout=10,) as r:
+                    async with session.get(URL(url, encoded=True), timeout=10, proxy=proxy if proxy and proxy.startswith("https") else None) as r:
                         if r.status != 200 and r.status != 206:
                             logging.debug(f'bad status code, waiting for 2 seconds: {r.status}')
                             await asyncio.sleep(2)
@@ -58,7 +58,6 @@ async def manifestdownload(manifest: dict, verbose: bool = False, audioonly: boo
                 logging.debug(str(e) + '\n\n' + url)
                 raise TypeError
 
-    currentdate = round(datetime.now().timestamp())
     if not audioonly:
         # threads = asyncio.Semaphore(5)
         logging.debug('downloading ')
@@ -68,12 +67,12 @@ async def manifestdownload(manifest: dict, verbose: bool = False, audioonly: boo
             audiofilenames = []
             logging.debug("downloading video")
             for index, vurl in enumerate(videourls):
-                await downloadmanifest(vurl, f'videoinfo/segmentv{index}-{currentdate}.ts', progress, session)
+                await downloadmanifest(vurl, f'videoinfo/segmentv{index}-{currentdate}.ts', progress, session, proxy)
                 videofilenames.append(f'videoinfo/segmentv{index}-{currentdate}.ts')
             logging.debug("video downloaded")
             logging.debug("downloading audio")
             for index, aurl in enumerate(audiourls):
-                await downloadmanifest(aurl, f'videoinfo/segmenta{index}-{currentdate}.ts', progress, session)
+                await downloadmanifest(aurl, f'videoinfo/segmenta{index}-{currentdate}.ts', progress, session, proxy)
                 audiofilenames.append(f'videoinfo/segmenta{index}-{currentdate}.ts')
             progress.close()
             logging.debug("downloaded audio")
@@ -94,7 +93,7 @@ async def manifestdownload(manifest: dict, verbose: bool = False, audioonly: boo
         audiofilenames = []
         async with aiohttp.ClientSession(connector=giveconnector(proxy)) as session:
             for index, aurl in enumerate(audiourls):
-                await downloadmanifest(aurl, f'videoinfo/segmenta{index}-{currentdate}.ts', progress, session)
+                await downloadmanifest(aurl, f'videoinfo/segmenta{index}-{currentdate}.ts', progress, session, proxy)
                 audiofilenames.append(f'videoinfo/segmenta{index}-{currentdate}.ts')
                 progress.close()
         async with aiofiles.open(f'videoinfo/manaudio-{currentdate}.ts', 'wb') as f1:

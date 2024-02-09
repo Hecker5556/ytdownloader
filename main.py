@@ -33,15 +33,15 @@ class ytdownload:
         audioextension = mimetypeaudio.split('/')[1].split(';')[0]
         tempvideo = f'tempvideo{round(datetime.now().timestamp())}.{videoextension}'
         tempaudio = f'tempaudio{round(datetime.now().timestamp())}.{audioextension}'
-        video = await normaldownload(videourl, filename=tempvideo, connector=connector, proxy=proxy)
+        video = await normaldownload(videourl, filename=tempvideo, connector=connector, proxy=proxy, start=start, end=end)
         logging.debug(f'downloaded video, {video}')
-        audio = await normaldownload(audiourl, filename=tempaudio, connector=connector, proxy=proxy)
+        audio = await normaldownload(audiourl, filename=tempaudio, connector=connector, proxy=proxy, start=start, end=end)
         merged = f'merged{round(datetime.now().timestamp())}.{videoextension}'
         logging.debug(f'downloaded audio, {audio}')
         if video and audio:
             logging.info('successfully downloaded both, merging now')
             try:
-                result = subprocess.run(f'ffmpeg -i {tempvideo} -i {tempaudio} -v error -c:v copy {"-c:a copy " if videoextension == audioextension else ""} -map 0:v:0 -map 1:a:0 -y {"-ss "+start if start else ""} {"-to "+end if end else ""} {merged}'.split(), check=True)
+                result = subprocess.run(f'ffmpeg -i {tempvideo} -i {tempaudio} -v error -c:v copy {"-c:a copy " if videoextension == audioextension else ""} -map 0:v:0 -map 1:a:0 -y {merged}'.split(), check=True)
             except Exception as e:
                 print(e)
                 return
@@ -844,6 +844,11 @@ class ytdownload:
                 subprocess.run(f'ffmpeg -i {tempvideo[0]} -i {tempaudio[0]} -map 0:v:0 -map 1:a:0 -c copy -v error {result[0]}'.split())
                 os.remove(tempvideo[0])
                 os.remove(tempaudio[0])
+            if start or end:
+                tempfilename = f"temp{round(datetime.now().timestamp())}.{result[1]}"
+                subprocess.run(f'ffmpeg -i {result[0]} {"-ss "+start if start else ""} {"-to "+end if end else ""} {"-c copy" if "mp3" not in result[1] else ""} {tempfilename}'.split(), check=True)
+                os.remove(result[0])
+                os.rename(tempfilename, result[0])
         elif premerged and not audioonly:
             logging.debug(f"downloading video \n{video.get('url')}")
             result = await normaldownload(video.get('url'), filename=f"merged{round(datetime.now().timestamp())}.{video.get('mimeType').split('/')[1].split(';')[0]}", 
@@ -985,8 +990,8 @@ class ytdownload:
                         'fps': manifestvideo.get('FRAME-RATE')}, otherinfo
             else:
                 if audioonly and not manifest:
-                    thecommand = 'ffprobe -v error -print_format json -show_format -show_streams -i'.split()
-                    thecommand.append(f"{filename}")
+                    maincommand = 'ffprobe -v error -print_format json -show_format -show_streams -i'.split()
+                    maincommand.append(f"{filename}")
                     ffprobe_result = subprocess.check_output(maincommand)
                     haserror = False
                     try:

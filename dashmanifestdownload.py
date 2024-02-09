@@ -5,7 +5,7 @@ from getjsfunctions import getfunctions
 from decipher import decrypt
 import logging
 from aiohttp_socks import ProxyConnector
-async def download(info: dict, connector = None, proxy = None) -> tuple:
+async def download(info: dict, connector = None, proxy: str = None) -> tuple:
     segments = 0
     connector = aiohttp.TCPConnector()
     if proxy:
@@ -16,7 +16,7 @@ async def download(info: dict, connector = None, proxy = None) -> tuple:
             else:
                 connector = ProxyConnector.from_url(url=proxy)
     async with aiohttp.ClientSession(connector=connector) as session:
-        async with session.get(info["url"] + "&sq=0") as r:
+        async with session.get(info["url"] + "&sq=0", proxy=proxy if proxy and proxy.startswith("https") else None) as r:
             rtext = await r.text(encoding="unicode_escape")
     pattern = r'Segment-Count: (.*?)\n'
 
@@ -45,7 +45,7 @@ async def download(info: dict, connector = None, proxy = None) -> tuple:
         else:
             connector = aiohttp.TCPConnector(proxy=proxy)
     async with aiohttp.ClientSession(connector=connector) as session:
-        tasks = [downloadworker(link, file, session, progress, threads) for index, (link, file) in enumerate(zip(links, filenames))]
+        tasks = [downloadworker(link, file, session, progress, threads, proxy) for index, (link, file) in enumerate(zip(links, filenames))]
         await asyncio.gather(*tasks)
     progress.close()
     async with aiofiles.open(filename, 'wb') as f1:
@@ -59,13 +59,13 @@ async def extractinfo(info: dict, length) -> dict:
     info["contentLength"] = length * info["bitrate"]
     return info
 
-async def downloadworker(link: str, filename: str, session: aiohttp.ClientSession, progress: tqdm, thread: asyncio.Semaphore, proxy = None):
+async def downloadworker(link: str, filename: str, session: aiohttp.ClientSession, progress: tqdm, thread: asyncio.Semaphore, proxy: str = None):
     async with thread:
         while True:
             total = 0
             try:
                 async with aiofiles.open(filename, 'wb') as f1:
-                    async with session.get(link, timeout=30, proxy=proxy) as r:
+                    async with session.get(link, timeout=30, proxy=proxy if proxy and proxy.startswith("https") else None) as r:
                         while True:
                             chunk = await r.content.read(1024)
                             if not chunk:

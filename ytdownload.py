@@ -52,7 +52,7 @@ start = datetime.now()
 playlistlinks = None
 resultdict = {}
 if 'playlist?' in args.link:
-    playlistlinks = asyncio.run(getplaylist.getplaylist(args.link))
+    playlistlinks = asyncio.run(getplaylist.getplaylist(args.link, proxy=args.proxy))
     resultdict = {}
 try:
     if playlistlinks:

@@ -3,7 +3,7 @@ from tqdm.asyncio import tqdm
 from aiohttp_socks import ProxyConnector
 async def betterparallel(link: str, filename: str, connector = None, proxy = None):
     async with aiohttp.ClientSession(connector=connector) as session:
-        async with session.get(link,) as response:
+        async with session.get(link, proxy=proxy if proxy and proxy.startswith("https") else None) as response:
             totalsize = int(response.headers.get('content-length'))
     tenmb = 10*1024*1024
     chunksize, remainder = divmod(totalsize, tenmb)
@@ -31,13 +31,13 @@ async def betterparallel(link: str, filename: str, connector = None, proxy = Non
         progress.close()
     return filename, os.path.splitext(filename)[1].replace('.', '')
 
-async def parallelworker(link:str, filename:str, startbyte: int, endbyte: int, progress, session: aiohttp.ClientSession, proxy = None):
+async def parallelworker(link:str, filename:str, startbyte: int, endbyte: int, progress, session: aiohttp.ClientSession, proxy: str = None):
     headers = {'range': f'bytes={startbyte}-{endbyte}'}
     if not os.path.exists(filename):
         async with aiofiles.open(filename, 'w') as f1:
             pass
     async with aiofiles.open(filename, 'ab') as f1:
-        async with session.get(link, headers=headers) as response:
+        async with session.get(link, headers=headers, proxy=proxy if proxy and proxy.startswith("https") else None) as response:
             if response.status != 200 and response.status != 206:
                 print('failed to download' + str(response.status))
                 return

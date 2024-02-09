@@ -1,9 +1,10 @@
 import aiohttp
+from aiohttp_socks import ProxyConnector
 class getplaylist:
     class unavaliable(Exception):
         def __init__(self, *args: object) -> None:
             super().__init__(*args)
-    async def getplaylist(url) -> list:
+    async def getplaylist(url, connector = None, proxy: str = None) -> list:
         playlistid = url.split('list=')[1].split('&')[0]
         headers = {
             'authority': 'www.youtube.com',
@@ -44,8 +45,12 @@ class getplaylist:
             'racyCheckOk': False,
             'contentCheckOk': False,
         }
-        async with aiohttp.ClientSession() as session:
-            async with session.post('https://www.youtube.com/youtubei/v1/next', params=params, headers=headers, json=json_data) as session:
+        if proxy.startswith("socks5"):
+            connector = ProxyConnector.from_url(proxy)
+        elif proxy.startswith("https"):
+            connector = aiohttp.TCPConnector()
+        async with aiohttp.ClientSession(connector=connector) as session:
+            async with session.post('https://www.youtube.com/youtubei/v1/next', params=params, headers=headers, json=json_data, proxy=proxy if proxy and proxy.startswith("https") else None) as session:
                 responsejson = await session.json()
         if not responsejson.get('contents', {}).get('twoColumnWatchNextResults', {}).get('playlist', {}):
             raise getplaylist.unavaliable(f'playlist not avaliable!')

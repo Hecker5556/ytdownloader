@@ -5,7 +5,7 @@ async def getfunctions(link: str, verbose: bool = False, proxy = None):
     logging.basicConfig(level=log_level, format="%(levelname)s: %(message)s")
     basejs = requests.get(link, proxies = {
         'http': proxy,
-        'https': proxy} if proxy else None)
+        'https': proxy} if proxy else None, stream=True)
     sigpattern = r'((.*?)=function\(a\)(.*?)return a.join\(\"\"\)\}\;)'
     sigmatches = re.findall(sigpattern, basejs.text[basejs.text.find('return a.join("")};')-300: basejs.text.find('return a.join("")};') + len('return a.join("")};')])
     functionname = sigmatches[0][1]

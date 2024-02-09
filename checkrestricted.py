@@ -39,7 +39,7 @@ async def getwebjson(link: str, cookies: dict, headers: dict = None, connector: 
             'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36',
         }
     async with aiohttp.ClientSession(connector=connector) as session:
-        async with session.get(f'https://youtube.com/watch?v={videoid}', cookies=cookies, headers=headers) as r:
+        async with session.get(f'https://youtube.com/watch?v={videoid}', cookies=cookies, headers=headers, proxy=proxy if proxy and proxy.startswith("https") else None) as r:
             rtext = await r.text(encoding='utf-8')
     logging.info(f'https://youtube.com/watch?v={videoid}')
     pattern = r'var ytInitialPlayerResponse = (.*?\"nanos\":(?:\d+)}}}})'
