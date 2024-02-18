@@ -11,8 +11,6 @@ async def getwebjson(link: str, cookies: dict, headers: dict = None, connector: 
                 connector = ProxyConnector.from_url(url=prox)
             else:
                 connector = ProxyConnector.from_url(url=proxy)
-        else:
-            connector = aiohttp.TCPConnector(proxy=proxy)
 
     pattern1 = r'(?:https?://)?(?:www\.)?(?:m\.)?youtube\.com/watch\?v=([\w-]+)'
     pattern2 = r'(?:https?://)?(?:www\.)?(?:m\.)?youtu\.be\/([\w-]+)'

@@ -141,8 +141,6 @@ class ytdownload:
                     connector = ProxyConnector.from_url(url=prox)
                 else:
                     connector = ProxyConnector.from_url(url=proxy)
-            else:
-                connector = aiohttp.TCPConnector(proxy=proxy)
         if premerged and manifest:
             raise ytdownload.theydontmix(f"manifests arent premerged")
         if priority:

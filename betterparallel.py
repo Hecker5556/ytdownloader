@@ -1,10 +1,10 @@
 import aiohttp, aiofiles, os, asyncio, logging
 from tqdm.asyncio import tqdm
 from aiohttp_socks import ProxyConnector
-async def betterparallel(link: str, filename: str, connector = None, proxy = None):
-    async with aiohttp.ClientSession(connector=connector) as session:
-        async with session.get(link, proxy=proxy if proxy and proxy.startswith("https") else None) as response:
-            totalsize = int(response.headers.get('content-length'))
+async def betterparallel(link: str, filename: str, connector = None, proxy = None, totalsize: int = 0):
+    # async with aiohttp.ClientSession(connector=connector) as session:
+    #     async with session.get(link, proxy=proxy if proxy and proxy.startswith("https") else None) as response:
+    #         totalsize = int(response.headers.get('content-length'))
     tenmb = 10*1024*1024
     chunksize, remainder = divmod(totalsize, tenmb)
     logging.debug((chunksize, remainder))
@@ -19,7 +19,7 @@ async def betterparallel(link: str, filename: str, connector = None, proxy = Non
             else:
                 connector = ProxyConnector.from_url(url=proxy)
         else:
-            connector = aiohttp.TCPConnector(proxy=proxy)
+            connector = aiohttp.TCPConnector()
     async with aiohttp.ClientSession(connector=connector) as session:
         for i in range(chunksize +1):
             endbyte = startbyte + tenmb - 1

@@ -27,8 +27,6 @@ async def getinfo(link: str, verbose: bool = False, manifest: bool = False,
                 connector = ProxyConnector.from_url(url=prox)
             else:
                 connector = ProxyConnector.from_url(url=proxy)
-        else:
-            connector = aiohttp.TCPConnector(proxy=proxy)
     webjson, videoid, basejslink = await getwebjson(link=link, cookies=cookies, connector=connector, proxy=proxy)
     if not webjson:
         raise someerror("idk, some error or proxy error")

@@ -42,8 +42,6 @@ async def download(info: dict, connector = None, proxy: str = None) -> tuple:
                 connector = ProxyConnector.from_url(url=prox)
             else:
                 connector = ProxyConnector.from_url(url=proxy)
-        else:
-            connector = aiohttp.TCPConnector(proxy=proxy)
     async with aiohttp.ClientSession(connector=connector) as session:
         tasks = [downloadworker(link, file, session, progress, threads, proxy) for index, (link, file) in enumerate(zip(links, filenames))]
         await asyncio.gather(*tasks)

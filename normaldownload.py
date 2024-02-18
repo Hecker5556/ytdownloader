@@ -2,7 +2,7 @@ import aiohttp, aiofiles, os
 from tqdm.asyncio import tqdm
 from betterparallel import betterparallel
 from aiohttp_socks import ProxyConnector
-import asyncio
+import logging
 async def normaldownload(link: str, filename: str, connector = None, proxy = None, start: str = None, end: str = None):
     headers = {'range': 'bytes=0-',
                'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36',}
@@ -18,8 +18,9 @@ async def normaldownload(link: str, filename: str, connector = None, proxy = Non
         async with aiohttp.ClientSession(connector=connector) as session:
             async with session.get(link, headers=headers, proxy=proxy if proxy and proxy.startswith("https") else None) as response:
                 totalsize = int(response.headers.get('content-length'))
+                logging.debug("total size of %s: %s" % (filename, totalsize))
                 if totalsize > 10*1024*1024: #unthrottled when under 10mb idk
-                    a = await betterparallel(link, filename, connector, proxy)
+                    a = await betterparallel(link, filename, connector, proxy, totalsize)
                     return a
                 progress = tqdm(total=totalsize, unit='B', unit_scale=True)
                 async with aiofiles.open(filename, 'wb') as f1:
