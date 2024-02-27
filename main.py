@@ -653,10 +653,11 @@ class ytdownload:
                     elif audio:
                         audioonly = True
                         if not onlyitag:
-                            for key, value in links['unmergednosig'].items() and value.get('mimeType').split(';')[0].split('/')[1] in audio.get('mimeType'):
-                                if 'video' in value.get('mimeType'):
-                                    video = value
-                                    break
+                            for key, value in links['unmergednosig'].items():
+                                if value.get('mimeType').split(';')[0].split('/')[1] in audio.get('mimeType'):
+                                    if 'video' in value.get('mimeType'):
+                                        video = value
+                                        break
                             logging.info(f'pairing itag {itag}({video.get("itag")} with audio itag {audio.get("itag")})')
                         logging.debug('getting functions')
                         functions = await getfunctions(basejslink, verbose=verbose)
