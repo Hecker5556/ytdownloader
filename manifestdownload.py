@@ -29,10 +29,10 @@ async def manifestdownload(manifest: dict, verbose: bool = False, audioonly: boo
     extension = 'mp4' if not audioonly and 'avc1' in manifest.get('CODECS') else 'webm' if not audioonly and 'vp09' in manifest.get('CODECS') else 'mp3'
     currentdate = round(datetime.now().timestamp())
     if not audioonly:
-        videourls = await getmanifesturls(manifest.get('URL'), connector=connector)
+        videourls = await getmanifesturls(manifest.get('URL'), connector=giveconnector(proxy), proxy=proxy)
         logging.debug(f'\n\nVIDEOURLS LEN {len(videourls)}\n\n')
 
-    audiourls = await getmanifesturls(manifest.get('AUDIOLINK'), connector=connector)
+    audiourls = await getmanifesturls(manifest.get('AUDIOLINK'), connector=giveconnector(proxy), proxy=proxy)
     logging.debug(f'\n\nAUDIOURLS LEN {len(audiourls)}\n\n')
     totalsize = float(manifest.get('FILESIZE'))*(1024*1024)
     async def downloadmanifest(url: str, filename: str, progress, session: aiohttp.ClientSession, proxy = None):
