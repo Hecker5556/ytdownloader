@@ -37,11 +37,11 @@ async def windo():
         else:
             print(f'{directory} is already in path:\n{path_value}')
 async def linu():
-    if not os.path.exists("ytdownloader.py"):
-        filepath = str(input("path to ytdownloader.py: "))
-    else:
-        filepath = os.path.abspath("ytdownloader.py")
-    process = await asyncio.subprocess.create_subprocess_exec("pip", *["install", "-r", os.path.dirname(filepath) + 'requirements.txt'])
+    for root, dirs, files in os.walk('.'):
+        if "ytdownload.py" in files:
+            filepath = os.path.abspath(root)
+            break
+    process = await asyncio.subprocess.create_subprocess_exec("pip", *["install", "-r", os.path.join(os.path.dirname(filepath),'requirements.txt')])
     await process.wait()
     with open("~/.bash_profile", "a") as f1:
         f1.write(f"\nexport PATH=$PATH:{filepath}")
