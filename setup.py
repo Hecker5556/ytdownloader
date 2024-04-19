@@ -43,9 +43,11 @@ async def linu():
             break
     process = await asyncio.subprocess.create_subprocess_exec("pip", *["install", "-r", os.path.join(os.path.dirname(filepath),'requirements.txt')])
     await process.wait()
-    with open("~/.bash_profile", "a") as f1:
+    homedirectory = os.path.expanduser('~')
+    profilefile = os.path.join(homedirectory, '.bashrc')
+    with open(profilefile, "a") as f1:
         f1.write(f"\nexport PATH=$PATH:{filepath}")
-    process = await asyncio.subprocess.create_subprocess_exec("source", *["~/.bash_profile"])
+    process = await asyncio.subprocess.create_subprocess_exec("source", *[profilefile])
     await process.wait()
     process = await asyncio.subprocess.create_subprocess_exec("chmod", *["+x", filepath])
     await process.wait()
