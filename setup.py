@@ -47,8 +47,6 @@ async def linu():
     profilefile = os.path.join(homedirectory, '.bashrc')
     with open(profilefile, "a") as f1:
         f1.write(f"\nexport PATH=$PATH:{filepath}")
-    process = await asyncio.subprocess.create_subprocess_exec("source", *[profilefile])
-    await process.wait()
     process = await asyncio.subprocess.create_subprocess_exec("chmod", *["+x", filepath])
     await process.wait()
 if __name__ == "__main__":
