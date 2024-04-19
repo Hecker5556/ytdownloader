@@ -41,6 +41,8 @@ async def linu():
         filepath = str(input("path to ytdownloader.py: "))
     else:
         filepath = os.path.abspath("ytdownloader.py")
+    process = await asyncio.subprocess.create_subprocess_exec("pip", *["install", "-r", os.path.dirname(filepath) + 'requirements.txt'])
+    await process.wait()
     with open("~/.bash_profile", "a") as f1:
         f1.write(f"\nexport PATH=$PATH:{filepath}")
     process = await asyncio.subprocess.create_subprocess_exec("source", *["~/.bash_profile"])
