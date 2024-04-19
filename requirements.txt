@@ -1,7 +1,5 @@
 aiohttp
 aiofiles
 tqdm
-urllib3
-requests
 prettytable
 aiohttp_socks
