@@ -157,7 +157,8 @@ class ytdownload:
                         print(f"{key}={value} is not a valid argument")
                 case "mp3audio":
                     if isinstance(value, bool):
-                        self.audioonly = value
+                        if value:
+                            self.audioonly = value
                         self.mp3audio = value
                     else:
                         print(f"{key}={value} is not a valid argument")
@@ -439,7 +440,7 @@ class ytdownload:
                             audio_ids.append(key)
                         elif 'mp4a' in value['mimeType']:
                             audio_ids.append(key)
-
+                
                 if self.priority == "video" and not self.audioonly:
                     for video in video_ids:
                         for audio in audio_ids:
@@ -524,14 +525,12 @@ class ytdownload:
                         if (int(self.all_formats[avaliable][audio].get('contentLength')))/(1024*1024) > self.maxsize:
                             self.logger.debug(f"{audio} is too big")
                             continue
-                        self.audio = audio
+                        self.audio = self.all_formats[avaliable][audio]
+                        break
                     if not self.audio:
                         raise self.no_valid_formats(f"No valid formats under the max size {self.maxsize}")
                 if self.video:
-
                     self.video['url'] = await self._decipher_url(self.video.get('signatureCipher') if self.video.get('signatureCipher') else self.video['url'], unciphered=False if self.video.get('signatureCipher') else True)
-
-
                 self.audio['url'] = await self._decipher_url(self.audio.get('signatureCipher') if self.audio.get('signatureCipher') else self.audio['url'], unciphered=False if self.audio.get('signatureCipher') else True)
             elif self.premerged and not self.manifest:
                 premerged_video = []
@@ -668,26 +667,48 @@ class ytdownload:
     async def _download_fr(self):
         if self.returnurlonly:
             return {'video': self.video.get('url'), 'audio': self.audio.get('url'), 'misc': self.all_formats['misc']}
+        count = 1
         if not self.manifest:
             if self.audioonly:
                 self.ext = "m4a" if "mp4a" in self.audio['mimeType'] else 'opus' if 'webm' in self.audio['mimeType'] else 'ec-3' if 'ec-3' in self.audio['mimeType'] else 'ac-3'
                 filename = f"temp_audio_{int(datetime.now().timestamp())}.{self.ext}"
                 logging.debug(f"Downloading audio itag {self.audio.get('itag')}")
-                await self._download(self.audio['url'], filename, None if not self.audio.get('contentLength') else int(self.audio['contentLength']))
-                self.result_file = filename
+                while True:
+                    await self._download(self.audio['url'], filename, None if not self.audio.get('contentLength') else int(self.audio['contentLength']))
+                    self.result_file = filename
+                    if os.path.exists(self.result_file):
+                        break
+                    else:
+                        if count == 4:
+                            raise ConnectionError(f"failed to download audio")
+                        await asyncio.sleep(count*5)
             elif self.video and not self.audio and not self.video.get('type'):
                 ext_vid = "mp4" if "avc1" in self.video['mimeType'] else 'webm'
                 filename_vid = f"temp_video_{int(datetime.now().timestamp())}.{ext_vid}"
                 logging.debug(f"Downloading video itag {self.video.get('itag')}")
-                await self._download(self.video['url'], filename_vid, None if not self.video.get('contentLength') else int(self.audio['contentLength']) if self.audio.get('contentLength') else None)
-                self.result_file = filename
-                self.ext = ext_vid
+                while True:
+                    await self._download(self.video['url'], filename_vid, None if not self.video.get('contentLength') else int(self.audio['contentLength']) if self.audio.get('contentLength') else None)
+                    self.result_file = filename
+                    self.ext = ext_vid
+                    if os.path.exists(self.result_file):
+                        break
+                    else:
+                        if count == 4:
+                            raise ConnectionError(f"failed to download audio")
+                        await asyncio.sleep(count*5)
             elif not self.video and self.audio:
                 self.ext = "m4a" if "mp4a" in self.audio['mimeType'] else 'opus' if 'webm' in self.audio['mimeType'] else 'ec-3' if 'ec-3' in self.audio['mimeType'] else 'ac-3'
                 filename = f"temp_audio_{int(datetime.now().timestamp())}.{self.ext}"
                 logging.debug(f"Downloading audio itag {self.audio.get('itag')}")
-                await self._download(self.audio['url'], filename, None if not self.audio.get('contentLength') else int(self.audio['contentLength']))
-                self.result_file = filename
+                while True:
+                    await self._download(self.audio['url'], filename, None if not self.audio.get('contentLength') else int(self.audio['contentLength']))
+                    self.result_file = filename
+                    if os.path.exists(self.result_file):
+                        break
+                    else:
+                        if count == 4:
+                            raise ConnectionError(f"failed to download audio")
+                        await asyncio.sleep(count*5)
             elif self.video and self.audio and not self.video.get('type'):
                 logging.debug(f"Downloading video itag {self.video.get('itag')}\nvideo url: {self.video['url']}\nDownloading audio itag {self.audio.get('itag')}\naudio url: {self.audio['url']}")
                 await self._unmerged_download_merge()
