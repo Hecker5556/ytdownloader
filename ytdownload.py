@@ -871,13 +871,24 @@ class ytdownload:
         ext_aud = "m4a" if "mp4a" in self.audio['mimeType'] else 'opus' if 'webm' in self.audio['mimeType'] else 'ec-3' if 'ec-3' in self.audio['mimeType'] else 'ac-3'
         filename_aud = f"temp_audio_{int(datetime.now().timestamp())}.{ext_aud}"
         compatible = True if ext_vid == "mp4" and ext_aud in ['m4a', 'ec-3', 'ac-3'] else True if ext_vid == 'webm' and ext_aud in ['opus'] else False
-        await self._download(self.video['url'], filename_vid, None if not self.video.get('contentLength') else int(self.video['contentLength']))
-        await self._download(self.audio['url'], filename_aud, None if not self.audio.get('contentLength') else int(self.audio['contentLength']))
-        self.result_file = f"merged_{int(datetime.now().timestamp())}.{ext_vid}"
-        args = [x for x in ['-i', filename_vid, '-i', filename_aud, '-c:v', 'copy', "-c:a" if compatible else "","copy" if compatible else "", '-map', '0:v:0', '-map', '1:a:0','-ab', str(self.audio.get('bitrate')), '-y', self.result_file] if x != ""]
-        process = await asyncio.subprocess.create_subprocess_exec("ffmpeg", *args, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
-        stdout, stderr = await process.communicate()
-        self.logger.debug(f"STDOUT: \n{stdout.decode() if stdout else None}\nSTDERR: \n{stderr.decode() if stderr else None}")
+        count = 1
+        while True:
+            await self._download(self.video['url'], filename_vid, None if not self.video.get('contentLength') else int(self.video['contentLength']))
+            await self._download(self.audio['url'], filename_aud, None if not self.audio.get('contentLength') else int(self.audio['contentLength']))
+            self.result_file = f"merged_{int(datetime.now().timestamp())}.{ext_vid}"
+            args = [x for x in ['-i', filename_vid, '-i', filename_aud, '-c:v', 'copy', "-c:a" if compatible else "","copy" if compatible else "", '-map', '0:v:0', '-map', '1:a:0','-ab', str(self.audio.get('bitrate')), '-y', self.result_file] if x != ""]
+            process = await asyncio.subprocess.create_subprocess_exec("ffmpeg", *args, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+            stdout, stderr = await process.communicate()
+            self.logger.debug(f"STDOUT: \n{stdout.decode() if stdout else None}\nSTDERR: \n{stderr.decode() if stderr else None}")
+            if not os.path.exists(self.result_file):
+                self.session.cookie_jar.clear()
+                if count == 4:
+                    raise ConnectionError(f"tried 3 times, couldnt download both video and audio\nvideo url {self.video['url']}\naudio url {self.audio['url']}")
+                self.logger.debug(f"trying again, errored, waiting {5*count} seconds")
+                await asyncio.sleep(5*count)
+                count += 1
+                continue
+            break
         os.remove(filename_vid)
         os.remove(filename_aud)
         self.ext = ext_vid
@@ -889,6 +900,7 @@ class ytdownload:
                 async with self.session.head(url, proxy=self.proxypreset) as headresponse:
                     logging.debug(f"request info: {json.dumps(self.request_to_dict(headresponse.request_info))}")
                     content_length = int(headresponse.headers.get('content-length'))
+                    await asyncio.sleep(2)
             if content_length > (10*1024*1024):
                 await self._chunk_download(url, f1, content_length)
             else:
@@ -896,35 +908,22 @@ class ytdownload:
                 headers = {
                     'range': 'bytes=0-'
                 }
-                count = 0
-                while True:
-                    async with self.session.get(url, proxy=self.proxypreset, headers=headers) as r:
-                        logging.debug(f"request info: {json.dumps(self.request_to_dict(r.request_info))}")
-                        if r.status == 302:
-                            self.logger.debug(f"ratelimited, waiting 5 seconds...")
-                            await asyncio.sleep(5)
-                            continue
-                        if r.status not in [200, 206]:
-                            self.logger.info("bad download, status %s" % str(r.status))
-                            if count == 1:
-                                break
-                            await asyncio.sleep(5)
-                            count += 1
-                            continue
-                        got_length = 0
-                        while True:
-                            chunk = await r.content.read(1024)
-                            if not chunk:
-                                break
-                            await f1.write(chunk)
-                            progress.update(len(chunk))
-                            got_length += len(chunk)
-                        if content_length > got_length:
-                            await asyncio.sleep(5)
-                            got_length = 0
-                            continue
-                        else:
+                async with self.session.get(url, proxy=self.proxypreset, headers=headers) as r:
+                    logging.debug(f"request info: {json.dumps(self.request_to_dict(r.request_info))}")
+                    if r.status == 302:
+                        self.logger.debug(f"ratelimited, waiting 5 seconds...")
+                        return
+                    if r.status not in [200, 206]:
+                        self.logger.info("bad download, status %s" % str(r.status))
+                        return
+                    while True:
+                        chunk = await r.content.read(1024)
+                        if not chunk:
                             break
+                        await f1.write(chunk)
+                        progress.update(len(chunk))
+
+
                 progress.close()
     async def _chunk_download(self, url: str, fp: aiofiles.threadpool.text.AsyncTextIOWrapper, content_length: int):
         headers = {
@@ -938,38 +937,24 @@ class ytdownload:
             end = start + chunk_size - 1
             if i == chunks:
                 headers['range'] = f"bytes={start}-"
-                count = 0
-                while True:
-                    self.logger.debug(f"Sending range request: {headers['range']}")
-                    async with self.session.get(url, headers=headers, proxy=self.proxypreset) as r:
-                        if r.status == 302:
-                            self.logger.debug(f"ratelimited, waiting 5 seconds...")
-                            await asyncio.sleep(5)
-                            continue
-                        if r.status not in [200, 206]:
-                            self.logger.info("bad download, status %s" % str(r.status))
-                            if count == 1:
-                                break
-                            await asyncio.sleep(5)
-                            count += 1
-                            continue
-                        logging.debug(f"request info: {json.dumps(self.request_to_dict(r.request_info))}")
-                        got_length = 0
-                        while True:
-                            chunk = await r.content.read(1024)
-                            if not chunk:
-                                break
-                            await fp.write(chunk)
-                            progress.update(len(chunk))
-                            got_length += len(chunk)
-                        if content_length > got_length:
-                            got_length = 0
-                            await asyncio.sleep(5)
-                            continue
-                        
-                        else:
-                            count = 0
+
+                self.logger.debug(f"Sending range request: {headers['range']}")
+                async with self.session.get(url, headers=headers, proxy=self.proxypreset) as r:
+                    logging.debug(f"request info: {json.dumps(self.request_to_dict(r.request_info))}")
+                    if r.status == 302:
+                        self.logger.debug(f"ratelimited, waiting 5 seconds...")
+                        return
+                    if r.status not in [200, 206]:
+                        self.logger.info("bad download, status %s" % str(r.status))
+                        return
+
+                    while True:
+                        chunk = await r.content.read(1024)
+                        if not chunk:
                             break
+                        await fp.write(chunk)
+                        progress.update(len(chunk))
+
             else:
                 headers['range'] = f"bytes={start}-{end}"
                 self.logger.debug(f"Sending range request: {headers['range']}")
