@@ -911,7 +911,7 @@ class ytdownload:
                             chunk = await r.content.read(1024)
                             if not chunk:
                                 break
-                            if len(chunk)>1:
+                            if len(chunk)>1024:
                                 got = True
                             await f1.write(chunk)
                             progress.update(len(chunk))
@@ -949,7 +949,7 @@ class ytdownload:
                             chunk = await r.content.read(1024)
                             if not chunk:
                                 break
-                            if len(chunk)>1:
+                            if len(chunk)>1024:
                                 got = True
                             await fp.write(chunk)
                             progress.update(len(chunk))
