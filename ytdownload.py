@@ -722,7 +722,7 @@ class ytdownload:
         if self.title and not os.path.exists(self.title):
             os.mkdir("".join([x for x in self.title if x not in '"\\/:*?<>|()']))
         clear = lambda x: "".join([i for i in x if i not in "\\/:*?<>|()"])
-        give_file = lambda folder, title, date, ext: f"{folder}/"+clear(title)+date+f".{ext}" if folder else clear(title)+date+f".{ext}"
+        give_file = lambda folder, title, date, ext: f"{clear(folder)}/"+clear(title)+date+f".{ext}" if folder else clear(title)+date+f".{ext}"
         resultfile = give_file(self.title, self.all_formats['misc'].get('title') if not self.filename else self.filename, "", self.ext)
         try:
             os.rename(self.result_file, resultfile)
