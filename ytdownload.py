@@ -903,12 +903,25 @@ class ytdownload:
                         r = await self.session.get(url, proxy=self.proxypreset, headers=headers)
                     if r.status not in [200, 206]:
                         self.logger.info("bad download, status %s" % str(r.status))
+                    got = False
                     while True:
                         chunk = await r.content.read(1024)
                         if not chunk:
                             break
+                        got = True
                         await f1.write(chunk)
                         progress.update(len(chunk))
+                    if not got:
+                        self.logger.debug(f"ratelimited, waiting 5 seconds...")
+                        await asyncio.sleep(5)
+                        r = await self.session.get(url, proxy=self.proxypreset, headers=headers)
+                        while True:
+                            chunk = await r.content.read(1024)
+                            if not chunk:
+                                break
+                            got = True
+                            await f1.write(chunk)
+                            progress.update(len(chunk))
                 progress.close()
     async def _chunk_download(self, url: str, fp: aiofiles.threadpool.text.AsyncTextIOWrapper, content_length: int):
         headers = {
