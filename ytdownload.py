@@ -906,20 +906,22 @@ class ytdownload:
                         if r.status not in [200, 206]:
                             self.logger.info("bad download, status %s" % str(r.status))
                             break
-                        got = False
+                        got_length = 0
                         while True:
                             chunk = await r.content.read(1024)
                             if not chunk:
                                 break
-                            if len(chunk)>512:
-                                got = True
                             await f1.write(chunk)
                             progress.update(len(chunk))
-                        if not got:
+                            got_length += len(chunk)
+                        if content_length > got_length:
                             await asyncio.sleep(5)
+                            got_length = 0
+                            continue
                         else:
                             break
-
+                    if not got:
+                        continue
                 progress.close()
     async def _chunk_download(self, url: str, fp: aiofiles.threadpool.text.AsyncTextIOWrapper, content_length: int):
         headers = {
@@ -944,18 +946,19 @@ class ytdownload:
                             self.logger.info("bad download, status %s" % str(r.status))
                             break
                         logging.debug(f"request info: {json.dumps(self.request_to_dict(r.request_info))}")
-                        got = False
+                        got_length = 0
                         while True:
                             chunk = await r.content.read(1024)
                             if not chunk:
                                 break
-                            if len(chunk)>512:
-                                got = True
                             await fp.write(chunk)
                             progress.update(len(chunk))
-                        if not got:
+                            got_length += len(chunk)
+                        if content_length > got_length:
+                            got_length = 0
                             await asyncio.sleep(5)
                             continue
+                        
                         else:
                             break
             else:
