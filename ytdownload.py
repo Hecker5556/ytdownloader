@@ -896,6 +896,7 @@ class ytdownload:
                 headers = {
                     'range': 'bytes=0-'
                 }
+                count = 0
                 while True:
                     async with self.session.get(url, proxy=self.proxypreset, headers=headers) as r:
                         logging.debug(f"request info: {json.dumps(self.request_to_dict(r.request_info))}")
@@ -905,7 +906,11 @@ class ytdownload:
                             continue
                         if r.status not in [200, 206]:
                             self.logger.info("bad download, status %s" % str(r.status))
-                            break
+                            if count == 1:
+                                break
+                            await asyncio.sleep(5)
+                            count += 1
+                            continue
                         got_length = 0
                         while True:
                             chunk = await r.content.read(1024)
@@ -933,6 +938,7 @@ class ytdownload:
             end = start + chunk_size - 1
             if i == chunks:
                 headers['range'] = f"bytes={start}-"
+                count = 0
                 while True:
                     self.logger.debug(f"Sending range request: {headers['range']}")
                     async with self.session.get(url, headers=headers, proxy=self.proxypreset) as r:
@@ -942,7 +948,11 @@ class ytdownload:
                             continue
                         if r.status not in [200, 206]:
                             self.logger.info("bad download, status %s" % str(r.status))
-                            break
+                            if count == 1:
+                                break
+                            await asyncio.sleep(5)
+                            count += 1
+                            continue
                         logging.debug(f"request info: {json.dumps(self.request_to_dict(r.request_info))}")
                         got_length = 0
                         while True:
@@ -958,6 +968,7 @@ class ytdownload:
                             continue
                         
                         else:
+                            count = 0
                             break
             else:
                 headers['range'] = f"bytes={start}-{end}"
