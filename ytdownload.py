@@ -277,6 +277,7 @@ class ytdownload:
                     res = await self._download_fr()
                     results.append(res)
                     self.logger.info(f"got {self.all_formats['misc']['title']}")
+                    await asyncio.sleep(3)
                 return results
             else:
                 self.logger.info("fetching video information")
