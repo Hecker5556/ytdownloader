@@ -920,8 +920,6 @@ class ytdownload:
                             continue
                         else:
                             break
-                    if not got:
-                        continue
                 progress.close()
     async def _chunk_download(self, url: str, fp: aiofiles.threadpool.text.AsyncTextIOWrapper, content_length: int):
         headers = {
