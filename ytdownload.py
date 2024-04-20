@@ -900,7 +900,8 @@ class ytdownload:
                 async with self.session.head(url, proxy=self.proxypreset) as headresponse:
                     logging.debug(f"request info: {json.dumps(self.request_to_dict(headresponse.request_info))}")
                     content_length = int(headresponse.headers.get('content-length'))
-                    await asyncio.sleep(2)
+                    self.video['content-length'] = content_length
+                    await asyncio.sleep(5)
             if content_length > (10*1024*1024):
                 await self._chunk_download(url, f1, content_length)
             else:
