@@ -1,4 +1,4 @@
-import asyncio, aiohttp, aiofiles, json, re, prettytable, logging, os
+import asyncio, aiohttp, aiofiles, json, re, prettytable, logging, os, traceback
 from aiohttp_socks import ProxyConnector
 from tqdm import tqdm
 from datetime import datetime
@@ -270,23 +270,45 @@ class ytdownload:
                     self.logger.info("fetching video information")
                     self.logger.debug(f"getting {link}")
                     self.link = link
-                    await self.get_video_info()
-                    if self.nodownload:
-                        res = await self._generate_table()
-                        results.append(res)
-                    await self._pick_formats()
-                    res = await self._download_fr()
+                    res = None
+                    for _ in range(2):
+                        try:
+                            await self.get_video_info()
+                            if self.nodownload:
+                                res = await self._generate_table()
+                                results.append(res)
+                                break
+                            await self._pick_formats()
+                            res = await self._download_fr()
+                            break
+                        except Exception as e:
+                            self.logger.debug(traceback.format_exc())
+                            self.logger.info(f"errored on {self.link}, use verbose to see error")
+                            continue
+                    if not res:
+                        self.logger.info(f"couldnt download {link}")
+                        continue
                     results.append(res)
                     self.logger.info(f"got {self.all_formats['misc']['title']}")
-                    await asyncio.sleep(3)
                 return results
             else:
                 self.logger.info("fetching video information")
-                await self.get_video_info()
-                if self.nodownload:
-                    return await self._generate_table()
-                await self._pick_formats()
-                return await self._download_fr()
+                res = None
+                for _ in range(2):
+                    try:
+                        await self.get_video_info()
+                        if self.nodownload:
+                            return await self._generate_table()
+                        await self._pick_formats()
+                        res = await self._download_fr()
+                        break
+                    except Exception as e:
+                        self.logger.debug(traceback.format_exc())
+                        self.logger.info(f"errored on {self.link}, use verbose to see error")
+                if not res:
+                    self.logger.info(f"couldnt download {self.link}")
+                    return None
+                return res
     async def search(self, query: str = None):
         if not self.query:
             self.query = query
@@ -679,9 +701,10 @@ class ytdownload:
                     if os.path.exists(self.result_file):
                         break
                     else:
-                        if count == 4:
+                        if count == 2:
                             raise ConnectionError(f"failed to download audio")
                         await asyncio.sleep(count*5)
+                        count += 1
             elif self.video and not self.audio and not self.video.get('type'):
                 ext_vid = "mp4" if "avc1" in self.video['mimeType'] else 'webm'
                 filename_vid = f"temp_video_{int(datetime.now().timestamp())}.{ext_vid}"
@@ -693,9 +716,10 @@ class ytdownload:
                     if os.path.exists(self.result_file):
                         break
                     else:
-                        if count == 4:
+                        if count == 2:
                             raise ConnectionError(f"failed to download audio")
                         await asyncio.sleep(count*5)
+                        count += 1
             elif not self.video and self.audio:
                 self.ext = "m4a" if "mp4a" in self.audio['mimeType'] else 'opus' if 'webm' in self.audio['mimeType'] else 'ec-3' if 'ec-3' in self.audio['mimeType'] else 'ac-3'
                 filename = f"temp_audio_{int(datetime.now().timestamp())}.{self.ext}"
@@ -706,9 +730,10 @@ class ytdownload:
                     if os.path.exists(self.result_file):
                         break
                     else:
-                        if count == 4:
+                        if count == 2:
                             raise ConnectionError(f"failed to download audio")
                         await asyncio.sleep(count*5)
+                        count +=1
             elif self.video and self.audio and not self.video.get('type'):
                 logging.debug(f"Downloading video itag {self.video.get('itag')}\nvideo url: {self.video['url']}\nDownloading audio itag {self.audio.get('itag')}\naudio url: {self.audio['url']}")
                 await self._unmerged_download_merge()
@@ -902,9 +927,8 @@ class ytdownload:
             stdout, stderr = await process.communicate()
             self.logger.debug(f"STDOUT: \n{stdout.decode() if stdout else None}\nSTDERR: \n{stderr.decode() if stderr else None}")
             if not os.path.exists(self.result_file):
-                self.session.cookie_jar.clear()
-                if count == 4:
-                    raise ConnectionError(f"tried 3 times, couldnt download both video and audio\nvideo url {self.video['url']}\naudio url {self.audio['url']}")
+                if count == 2:
+                    raise ConnectionError(f"tried 2 times, couldnt download both video and audio\nvideo url {self.video['url']}\naudio url {self.audio['url']}")
                 self.logger.debug(f"trying again, errored, waiting {5*count} seconds")
                 await asyncio.sleep(5*count)
                 count += 1
@@ -922,7 +946,6 @@ class ytdownload:
                     logging.debug(f"request info: {json.dumps(self.request_to_dict(headresponse.request_info))}")
                     content_length = int(headresponse.headers.get('content-length'))
                     self.video['content-length'] = content_length
-                    await asyncio.sleep(5)
             if content_length > (10*1024*1024):
                 await self._chunk_download(url, f1, content_length)
             else:
@@ -1650,6 +1673,8 @@ class ytdownload:
             tempdict[str(index)] = self.all_formats[name][key]
         self.all_formats[name] = tempdict
     async def __aenter__(self):
+        if not self.session:
+            self.session = aiohttp.ClientSession(connector=self._make_connector())
         return self
     async def __aexit__(self, exc_type, exc_value, traceback):
         self.logger.debug(f"{exc_type}, {exc_value}, {traceback}")
