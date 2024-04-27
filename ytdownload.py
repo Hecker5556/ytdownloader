@@ -414,6 +414,8 @@ class ytdownload:
         responsejson = responsejson['contents']['twoColumnWatchNextResults']['playlist']['playlist']['contents']
         self.links =  [f'https://youtube.com/watch?v={i["playlistPanelVideoRenderer"]["videoId"]}' for i in responsejson if not i.get('messageRenderer')]
     async def _pick_formats(self):
+        if not self.session:
+            self.session = aiohttp.ClientSession(connector=self._make_connector)
         if self.start or self.end:
             duration = int(self.all_formats['misc']['lengthSeconds'])
             begin = None
@@ -706,7 +708,7 @@ class ytdownload:
                         await asyncio.sleep(count*5)
                         count += 1
             elif self.video and not self.audio and not self.video.get('type'):
-                ext_vid = "mp4" if "avc1" in self.video['mimeType'] else 'webm'
+                ext_vid = "mp4" if ("avc1" in self.video['mimeType'] or 'av01' in self.video['mimeType']) else 'webm'
                 filename_vid = f"temp_video_{int(datetime.now().timestamp())}.{ext_vid}"
                 logging.debug(f"Downloading video itag {self.video.get('itag')}")
                 while True:
@@ -738,7 +740,7 @@ class ytdownload:
                 logging.debug(f"Downloading video itag {self.video.get('itag')}\nvideo url: {self.video['url']}\nDownloading audio itag {self.audio.get('itag')}\naudio url: {self.audio['url']}")
                 await self._unmerged_download_merge()
             elif self.video and self.video.get('type'):
-                ext_vid = "mp4" if "avc1" in self.video['mimeType'] else 'webm'
+                ext_vid = "mp4" if ("avc1" in self.video['mimeType'] or 'av01' in self.video['mimeType']) else 'webm'
                 filename_vid = f"temp_video_{int(datetime.now().timestamp())}.{ext_vid}"
                 logging.debug(f"Downloading video itag {self.video.get('itag')}")
                 await self._dash_download(filename_vid)
@@ -912,7 +914,7 @@ class ytdownload:
         progress.close()
         
     async def _unmerged_download_merge(self):
-        ext_vid = "mp4" if "avc1" in self.video['mimeType'] else 'webm'
+        ext_vid = "mp4" if ("avc1" in self.video['mimeType'] or "av01" in self.video['mimeType']) else 'webm'
         filename_vid = f"temp_video_{int(datetime.now().timestamp())}.{ext_vid}"
         ext_aud = "m4a" if "mp4a" in self.audio['mimeType'] else 'opus' if 'webm' in self.audio['mimeType'] else 'ec-3' if 'ec-3' in self.audio['mimeType'] else 'ac-3'
         filename_aud = f"temp_audio_{int(datetime.now().timestamp())}.{ext_aud}"
