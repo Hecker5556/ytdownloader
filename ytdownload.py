@@ -5,6 +5,7 @@ from datetime import datetime
 from urllib.parse import unquote
 from copy import deepcopy
 from yarl import URL
+from colorama import Fore
 LINKPATTERN_DEFAULT = r'(?:https?://)?(?:www\.)?(?:m\.)?youtube\.com/watch\?v=[\w-]+'
 LINKPATTERN_MOBILE = r'(?:https?://)?(?:www\.)?(?:m\.)?youtu\.be/[\w-]+'
 LINKPATTERN_SHORTS = r'(?:https?://)?(?:www\.)?(?:m\.)?youtube\.com/shorts/[\w-]+(?:\?feature=[\w]+)?'
@@ -264,7 +265,7 @@ class ytdownload:
                     self.link = link
                 self.playlist = True
                 await self.get_playlist()
-                self.logger.info(f"grabbed playlist, {len(self.links)} links")
+                self.logger.info(f"grabbed playlist, {Fore.GREEN}{len(self.links)}{Fore.RESET} links")
                 results = []
                 for link in self.links:
                     self.logger.info("fetching video information")
@@ -283,7 +284,7 @@ class ytdownload:
                             break
                         except Exception as e:
                             self.logger.debug(traceback.format_exc())
-                            self.logger.info(f"errored on {self.link}, use verbose to see error")
+                            self.logger.info(f"{Fore.RED}errored on {self.link}, use verbose to see error{Fore.RESET}")
                             continue
                     if not res:
                         self.logger.info(f"couldnt download {link}")
@@ -306,7 +307,7 @@ class ytdownload:
                         self.logger.debug(traceback.format_exc())
                         self.logger.info(f"errored on {self.link}, use verbose to see error")
                 if not res:
-                    self.logger.info(f"couldnt download {self.link}")
+                    self.logger.info(f"{Fore.RED}couldnt download {self.link}{Fore.RESET}")
                     return None
                 return res
     async def search(self, query: str = None):
@@ -450,7 +451,7 @@ class ytdownload:
             video_ids = []
             audio_ids = []
             if not self.manifest and not self.premerged:
-                avaliable = 'unmerged_sig' if self.all_formats.get('unmerged_sig') else 'unmerged_unsig'
+                avaliable = 'unmerged_unsig' if self.all_formats.get('unmerged_unsig') and self.needlogin else 'unmerged_sig' if not self.all_formats.get("unmerged_unsig") or not self.needlogin else "unmerged_unsig"
                 self.logger.debug(f"downloading {avaliable}")
                 for key, value in deepcopy(self.all_formats[avaliable]).items():
                     if value.get('contentLength') and int(value.get('contentLength'))/(1024*1024)>self.maxsize:
@@ -558,7 +559,7 @@ class ytdownload:
                 self.audio['url'] = await self._decipher_url(self.audio.get('signatureCipher') if self.audio.get('signatureCipher') else self.audio['url'], unciphered=False if self.audio.get('signatureCipher') else True)
             elif self.premerged and not self.manifest:
                 premerged_video = []
-                avaliable = 'merged_sig' if self.all_formats.get('merged_sig') else 'merged_unsig'
+                avaliable = 'merged_unsig' if self.all_formats.get('merged_unsig') and self.needlogin else 'merged_sig' if not self.all_formats.get("merged_unsig") or not self.needlogin else "merged_unsig"
                 for key, value in self.all_formats[avaliable].items():
                     if self.codec and self.codec in value.get('mimeType'):
                         premerged_video.append(key)
@@ -588,7 +589,7 @@ class ytdownload:
                     raise self.no_valid_formats(f"No valid formats under the max size {self.maxsize}")
         elif self.itag:
             if self.itag in [17, 18, 22]:    
-                avaliable = 'merged_sig' if self.all_formats.get('merged_sig') else 'merged_unsig'
+                avaliable = 'merged_unsig' if self.all_formats.get('merged_unsig') and self.needlogin else 'merged_sig' if not self.all_formats.get("merged_unsig") or not self.needlogin else "merged_unsig"
                 for key, value in self.all_formats[avaliable].items():
                     if int(value.get('itag')) == int(self.itag):
                         self.video = value
@@ -631,7 +632,7 @@ class ytdownload:
                 if not (self.video or self.audio or self.manifest_video):
                     raise self.no_valid_formats(f"Couldn't find any formats with itag {self.itag}")
                 if not self.onlyitag:
-                    avaliable = 'unmerged_sig' if self.all_formats.get("unmerged_sig") else "unmerged_unsig"
+                    avaliable = 'unmerged_unsig' if self.all_formats.get('unmerged_unsig') and self.needlogin else 'unmerged_sig' if not self.all_formats.get("unmerged_unsig") or not self.needlogin else "unmerged_unsig"
 
                     if self.video:
                         for key, value in self.all_formats[avaliable].items():
@@ -646,7 +647,7 @@ class ytdownload:
                                 self.video['url'] = await self._decipher_url(self.video['signatureCipher'] if self.video.get('signatureCipher') else self.video.get('url'), unciphered=True if self.video.get('url') else False)
                                 break
         elif not self.premerged and not self.manifest:
-            avaliable = 'unmerged_sig' if self.all_formats.get("unmerged_sig") else "unmerged_unsig"
+            avaliable = 'unmerged_unsig' if self.all_formats.get('unmerged_unsig') and self.needlogin else 'unmerged_sig' if not self.all_formats.get("unmerged_unsig") or not self.needlogin else "unmerged_unsig"
             video_ids = []
             audio_ids = []
             for key, value in self.all_formats[avaliable].items():
@@ -676,7 +677,7 @@ class ytdownload:
                 self.audio = self.all_formats[avaliable][audio_ids[0]]
                 self.audio['url'] = await self._decipher_url(self.audio['signatureCipher'] if self.audio.get('signatureCipher') else self.audio.get('url'), unciphered=True if self.audio.get('url') else False)
         elif self.premerged and not self.manifest:
-             avaliable = 'merged_sig' if self.all_formats.get('merged_sig') else 'merged_unsig'
+             avaliable = 'merged_unsig' if self.all_formats.get('merged_unsig') and self.needlogin else 'merged_sig' if not self.all_formats.get("merged_unsig") or not self.needlogin else "merged_unsig"
              for key, value in self.all_formats[avaliable].items():
                  self.video = value
                  break
@@ -752,6 +753,7 @@ class ytdownload:
                     await self._download(self.audio['url'], filename, None if not self.audio.get('contentLength') else int(self.audio['contentLength']))
                     self.result_file = f"merged_{int(datetime.now().timestamp())}.{ext_vid}"
                     process = await asyncio.subprocess.create_subprocess_exec("ffmpeg", *[x for x in ['-i', filename_vid, '-i', filename_aud, '-c:v', 'copy', "-c:a" if compatible else "", "copy" if compatible else "",'-map', '0:v:0', '-map', '1:a:0','-ab', str(self.audio.get('bitrate')), '-y', self.result_file] if x != ""], stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+                    self.logger.debug("subprocess command:\nffmpeg " + " ".join([x for x in ['-i', filename_vid, '-i', filename_aud, '-c:v', 'copy', "-c:a" if compatible else "", "copy" if compatible else "",'-map', '0:v:0', '-map', '1:a:0','-ab', str(self.audio.get('bitrate')), '-y', self.result_file] if x != ""]))
                     stdout, stderr = await process.communicate()
                     self.logger.debug(f"STDOUT: \n{stdout.decode() if stdout else None}\nSTDERR: \n{stderr.decode() if stderr else None}")
                     os.remove(filename_aud)
@@ -786,6 +788,7 @@ class ytdownload:
         if self.start or self.end:
             tempfile = f"tempfile_{int(datetime.now().timestamp())}.{self.ext}"
             process = await asyncio.subprocess.create_subprocess_exec("ffmpeg", *["-i", self.result_file, "-ss" if self.start else "", self.start if self.start else "", "-to" if self.end else "", self.end if self.end else "", "-c", "copy", tempfile], stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+            self.logger.debug("subprocess command:\nffmpeg " + " ".join(["-i", self.result_file, "-ss" if self.start else "", self.start if self.start else "", "-to" if self.end else "", self.end if self.end else "", "-c", "copy", tempfile]))
             stdout, stderr = await process.communicate()
             logging.debug(f"STDOUT: \n{stdout.decode() if stdout else None}\nSTDERR: \n{stderr.decode() if stderr else None}")
             os.remove(self.result_file)
@@ -793,11 +796,13 @@ class ytdownload:
         if self.mp3audio:
             tempfile = f"tempfile_{int(datetime.now().timestamp())}.mp3"
             process = await asyncio.subprocess.create_subprocess_exec("ffmpeg", *["-i", self.result_file,'-ab', str(self.audio.get('bitrate')) if self.audio.get('bitrate') else str(self.manifest_video.get('audio_bitrate')), tempfile], stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+            self.logger.debug("subprocess command:\nffmpeg " + " ".join(["-i", self.result_file,'-ab', str(self.audio.get('bitrate')) if self.audio.get('bitrate') else str(self.manifest_video.get('audio_bitrate')), tempfile]))
             stdout, stderr = await process.communicate()
             logging.debug(f"STDOUT: \n{stdout.decode() if stdout else None}\nSTDERR: \n{stderr.decode() if stderr else None}")
             os.remove(self.result_file)
             os.rename(tempfile, self.result_file)
         process = await asyncio.subprocess.create_subprocess_exec("ffprobe", *['-i', self.result_file, '-show_streams', '-print_format', 'json', '-v', 'quiet', '-show_format'], stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+        self.logger.debug("subprocess command:\nffprobe " + " ".join(['-i', self.result_file, '-show_streams', '-print_format', 'json', '-v', 'quiet', '-show_format']))
         stdout, stderr = await process.communicate()
         file_info = json.loads(stdout.decode())
         for i in file_info.get('streams'):
@@ -855,12 +860,14 @@ class ytdownload:
             self.progress.close()
             compatible = True if 'mp4a' and 'avc1' in self.manifest_video['CODECS'] else False
             audio_bitrate = await asyncio.subprocess.create_subprocess_exec("ffprobe", *['-v', 'quiet', '-print_format', 'json', '-show_format', '-show_streams', '-i', temp_file_a], stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+            self.logger.debug("subprocess command:\nffprobe " + " ".join(['-v', 'quiet', '-print_format', 'json', '-show_format', '-show_streams', '-i', temp_file_a]))
             stdout, stderr = await audio_bitrate.communicate()
             audio_bitrate = json.loads(stdout.decode()).get('streams')[0].get('bit_rate')
             self.manifest_video['audio_bitrate'] = audio_bitrate
             args = [x for x in ["-i" ,temp_file_v, "-i" ,temp_file_a ,"-c:v" ,"copy" ,"-c:a" if compatible else "", "copy" if compatible else "", "-ab" ,str(audio_bitrate), "-map", "0:v:0", "-map", "1:a:0" ,"-y" ,self.result_file] if x != ""]
             logging.debug(f"ffmpeg {' '.join(args)}")
             process = await asyncio.subprocess.create_subprocess_exec("ffmpeg", *args, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+            self.logger.debug("subprocess command:\nffmpeg " + " ".join(args))
             stdout, stderr = await process.communicate()
             self.logger.debug(f"STDOUT: \n{stdout.decode() if stdout else None}\nSTDERR: \n{stderr.decode() if stderr else None}")
         else:
@@ -870,6 +877,7 @@ class ytdownload:
             self.progress.close()
             self.result_file = temp_file_a
             audio_bitrate = await asyncio.subprocess.create_subprocess_exec("ffprobe", *['-v', 'quiet', '-print_format', 'json', '-show_format', '-show_streams', '-i', temp_file_a], stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+            self.logger.debug("subprocess command:\nffprobe " + " ".join(['-v', 'quiet', '-print_format', 'json', '-show_format', '-show_streams', '-i', temp_file_a]))
             stdout, stderr = await audio_bitrate.communicate()
             audio_bitrate = json.loads(stdout.decode()).get('streams')[0].get('bit_rate')
             self.manifest_video['audio_bitrate'] = audio_bitrate
@@ -926,6 +934,7 @@ class ytdownload:
             self.result_file = f"merged_{int(datetime.now().timestamp())}.{ext_vid}"
             args = [x for x in ['-i', filename_vid, '-i', filename_aud, '-c:v', 'copy', "-c:a" if compatible else "","copy" if compatible else "", '-map', '0:v:0', '-map', '1:a:0','-ab', str(self.audio.get('bitrate')), '-y', self.result_file] if x != ""]
             process = await asyncio.subprocess.create_subprocess_exec("ffmpeg", *args, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+            self.logger.debug("subprocess command:\nffmpeg " + " ".join(args))
             stdout, stderr = await process.communicate()
             self.logger.debug(f"STDOUT: \n{stdout.decode() if stdout else None}\nSTDERR: \n{stderr.decode() if stderr else None}")
             if not os.path.exists(self.result_file):
@@ -942,6 +951,7 @@ class ytdownload:
     async def _download(self, url: str, filename: str, content_length: int):
         if not self.session:
             self.session = aiohttp.ClientSession(connector=self._make_connector())
+        headers = {}
         async with aiofiles.open(filename, 'wb') as f1:
             if not content_length:
                 async with self.session.head(url, proxy=self.proxypreset) as headresponse:
@@ -952,16 +962,15 @@ class ytdownload:
                 await self._chunk_download(url, f1, content_length)
             else:
                 progress = tqdm(total=content_length, unit='iB', unit_scale=True)
-                headers = {
-                    'range': 'bytes=0-'
-                }
+                headers['range'] =  'bytes=0-'
+                
                 async with self.session.get(url, proxy=self.proxypreset, headers=headers) as r:
                     logging.debug(f"request info: {json.dumps(self.request_to_dict(r.request_info))}")
                     if r.status == 302:
                         self.logger.debug(f"ratelimited, waiting 5 seconds...")
                         return
                     if r.status not in [200, 206]:
-                        self.logger.info("bad download, status %s" % str(r.status))
+                        self.logger.info(f"bad download, status {Fore.RED}{r.status}{Fore.RESET}")
                         return
                     while True:
                         chunk = await r.content.read(1024)
@@ -973,17 +982,17 @@ class ytdownload:
 
                 progress.close()
     async def _chunk_download(self, url: str, fp: aiofiles.threadpool.text.AsyncTextIOWrapper, content_length: int):
-        headers = {
-            "range": "bytes=0-"
-        }
+        headers = {}
+        headers["range"] = "bytes=0-"
+        
         chunk_size = 10 * 1024 * 1024
         chunks, _ = divmod(content_length, 10*1024*1024)
         progress = tqdm(total=content_length, unit='iB', unit_scale=True)
-        for i in range(chunks+1):
+        for i in range(0, chunks+1):
             start = i*chunk_size
             end = start + chunk_size - 1
             if i == chunks:
-                headers['range'] = f"bytes={start}-"
+                headers["range"] = f"bytes={start}-"
 
                 self.logger.debug(f"Sending range request: {headers['range']}")
                 async with self.session.get(url, headers=headers, proxy=self.proxypreset) as r:
@@ -992,7 +1001,7 @@ class ytdownload:
                         self.logger.debug(f"ratelimited, waiting 5 seconds...")
                         return
                     if r.status not in [200, 206]:
-                        self.logger.info("bad download, status %s" % str(r.status))
+                        self.logger.info(f"bad download, status {Fore.RED}{r.status}{Fore.RESET}")
                         return
 
                     while True:
@@ -1003,7 +1012,7 @@ class ytdownload:
                         progress.update(len(chunk))
 
             else:
-                headers['range'] = f"bytes={start}-{end}"
+                headers["range"] = f"bytes={start}-{end}"
                 self.logger.debug(f"Sending range request: {headers['range']}")
                 async with self.session.get(url, headers=headers, proxy=self.proxypreset) as r:
                     if r.status == 302:
@@ -1011,7 +1020,7 @@ class ytdownload:
                         await asyncio.sleep(5)
                         r = await self.session.get(url, proxy=self.proxypreset, headers=headers)
                     if r.status not in [200, 206]:
-                        self.logger.info("bad download, status %s" % str(r.status))
+                        self.logger.info(f"bad download, status {Fore.RED}{r.status}{Fore.RESET}")
                     logging.debug(f"request info: {json.dumps(self.request_to_dict(r.request_info))}")
                     while True:
                         chunk = await r.content.read(1024)
@@ -1171,13 +1180,14 @@ class ytdownload:
             "merged_sig": {}
         }
         self.needlogin = False
+        self.using_env = False
         if responsejson['playabilityStatus'].get('status') == 'LOGIN_REQUIRED':
             self.needlogin = True
             try:
                 import env
-                logging.info("LOGIN REQUIRED, will try use credentials")
-
-                logheaders = {
+                logging.info(f"{Fore.BLUE}LOGIN REQUIRED,{Fore.RESET} will try use credentials")
+                self.using_env = True
+                self.logheaders = {
                     'authority': 'www.youtube.com',
                     'accept': '*/*',
                     'accept-language': 'en-US,en;q=0.7',
@@ -1232,7 +1242,7 @@ class ytdownload:
                 async with self.session.post(
                     'https://www.youtube.com/youtubei/v1/player',
                     params=logparams,
-                    headers=logheaders,
+                    headers=self.logheaders,
                     json=logjson_data, proxy=self.proxypreset
                 ) as r:
                     logging.debug(f"request info: {json.dumps(self.request_to_dict(r.request_info))}")
@@ -1251,7 +1261,7 @@ class ytdownload:
                     self.video_merged_info[str(index)] = i
                     avaliable_itags.append(int(i['itag']))
             except:
-                self.logger.info("LOGIN REQUIRED. Will try to use TVHTML5_SIMPLY_EMBEDDED_PLAYER to grab info")
+                self.logger.info(f"{Fore.BLUE}LOGIN REQUIRED.{Fore.RESET} Will try to use TVHTML5_SIMPLY_EMBEDDED_PLAYER to grab info")
                 json_data = {
                     "context": {
                         "client": {
@@ -1405,7 +1415,7 @@ class ytdownload:
             if 'IOS' in key:
                 json_data['context']['client']['deviceModel'] = value.get('deviceModel')
             params = {
-            'key': value.get('apikey') if not self.needlogin else env.apikey,
+            'key': value.get('apikey'),
             'prettyPrint': 'false',
             }
             async with self.session.post(
@@ -1413,7 +1423,7 @@ class ytdownload:
             params=params,
             json=json_data, 
             cookies=cookies,
-            headers=headers if not self.needlogin else logheaders,
+            headers=self.logheaders if self.needlogin and self.using_env else headers,
             proxy=self.proxypreset
             ) as apiresponse:
                 logging.debug(f"request info: {json.dumps(self.request_to_dict(apiresponse.request_info))}")
@@ -1497,6 +1507,8 @@ class ytdownload:
                 for key, value in baloney.items():
                     if isinstance(value, str):
                         continue
+                    if isinstance(value, bool):
+                        continue
                     if value.get('url'):
                         self.expire = datetime.fromtimestamp(int(re.findall(r"expire=(\d+)", value.get('url'))[0]))
                         break
@@ -1510,7 +1522,7 @@ class ytdownload:
             temp =deepcopy(self.all_formats)
             temp['misc'] = self.other_video_info
             await f1.write(json.dumps(temp, indent=4))
-        self.logger.info("successfully fetched video information")
+        self.logger.info(f"{Fore.GREEN}successfully fetched video information{Fore.RESET}")
     async def _decipher_url(self, ciphered_url: str, unciphered: bool = False):
 
         await self._get_decipher_functions()
