@@ -951,7 +951,7 @@ class ytdownload:
     async def _download(self, url: str, filename: str, content_length: int):
         if not self.session:
             self.session = aiohttp.ClientSession(connector=self._make_connector())
-        headers = {}
+        headers = {'userAgent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36'}
         async with aiofiles.open(filename, 'wb') as f1:
             if not content_length:
                 async with self.session.head(url, proxy=self.proxypreset) as headresponse:
@@ -982,7 +982,7 @@ class ytdownload:
 
                 progress.close()
     async def _chunk_download(self, url: str, fp: aiofiles.threadpool.text.AsyncTextIOWrapper, content_length: int):
-        headers = {}
+        headers = {'userAgent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36'}
         headers["range"] = "bytes=0-"
         
         chunk_size = 10 * 1024 * 1024
@@ -1248,18 +1248,22 @@ class ytdownload:
                     logging.debug(f"request info: {json.dumps(self.request_to_dict(r.request_info))}")
                     response = await r.text("utf-8")
                     responsejson = json.loads(response)
-                avaliable_itags = list(map(lambda x: int(x[1].get('itag')), self.video_unmerged_info.items()))
-                for index, i in enumerate(responsejson['streamingData']['adaptiveFormats']):
-                    if int(i['itag']) in avaliable_itags:
-                        continue
-                    self.video_unmerged_info[str(index)] = i
-                    avaliable_itags.append(int(i['itag']))
-                avaliable_itags = list(map(lambda x: int(x[1].get('itag')), self.video_merged_info.items()))
-                for index, i in enumerate(responsejson['streamingData']['formats']):
-                    if int(i['itag']) in avaliable_itags:
-                        continue
-                    self.video_merged_info[str(index)] = i
-                    avaliable_itags.append(int(i['itag']))
+                # avaliable_itags = list(map(lambda x: int(x[1].get('itag')), self.video_unmerged_info.items()))
+                # for index, i in enumerate(responsejson['streamingData']['adaptiveFormats']):
+                #     if int(i['itag']) in avaliable_itags:
+                #         continue
+                #     i['source'] = 'logged_web'
+                #     self.video_unmerged_info[str(index)] = i
+                #     avaliable_itags.append(int(i['itag']))
+                # avaliable_itags = list(map(lambda x: int(x[1].get('itag')), self.video_merged_info.items()))
+                # for index, i in enumerate(responsejson['streamingData']['formats']):
+                #     if int(i['itag']) in avaliable_itags:
+                #         continue
+                #     i['source'] = 'logged_web'
+                #     self.video_merged_info[str(index)] = i
+                #     avaliable_itags.append(int(i['itag']))
+                for key, value in responsejson["videoDetails"].items():
+                    self.other_video_info[key] = value
             except:
                 self.logger.info(f"{Fore.BLUE}LOGIN REQUIRED.{Fore.RESET} Will try to use TVHTML5_SIMPLY_EMBEDDED_PLAYER to grab info")
                 json_data = {
@@ -1289,75 +1293,82 @@ class ytdownload:
                     logging.debug(f"request info: {json.dumps(self.request_to_dict(response.request_info))}")
                     response = await response.text("utf-8")
                     responsejson = json.loads(response)
-                    avaliable_itags = list(map(lambda x: int(x[1].get('itag')), self.video_unmerged_info.items()))
-                    for index, i in enumerate(responsejson['streamingData']['adaptiveFormats']):
-                        if int(i['itag']) in avaliable_itags:
+                    # avaliable_itags = list(map(lambda x: int(x[1].get('itag')), self.video_unmerged_info.items()))
+                    # for index, i in enumerate(responsejson['streamingData']['adaptiveFormats']):
+                    #     if int(i['itag']) in avaliable_itags:
+                    #         continue
+                    #     i['source'] = "TVHTML5_SIMPLY_EMBEDDED_PLAYER"
+                    #     self.video_unmerged_info[str(index)] = i
+                    #     avaliable_itags.append(int(i['itag']))
+                    # avaliable_itags = list(map(lambda x: int(x[1].get('itag')), self.video_merged_info.items()))
+                    # for index, i in enumerate(responsejson['streamingData']['formats']):
+                    #     if int(i['itag']) in avaliable_itags:
+                    #         continue
+                    #     i['source'] = "TVHTML5_SIMPLY_EMBEDDED_PLAYER"
+                    #     self.video_merged_info[str(index)] = i
+                    #     avaliable_itags.append(int(i['itag']))
+                    for key, value in responsejson["videoDetails"].items():
+                        self.other_video_info[key] = value
+        else:
+            avaliable_itags = list(map(lambda x: int(x[1].get('itag')), self.video_unmerged_info.items()))
+            for index, i in enumerate(responsejson['streamingData']['adaptiveFormats']):
+                if int(i['itag']) in avaliable_itags:
+                    continue
+                i['source'] = 'web'
+                self.video_unmerged_info[str(index)] = i
+                avaliable_itags.append(int(i['itag']))
+            avaliable_itags = list(map(lambda x: int(x[1].get('itag')), self.video_merged_info.items()))
+            for index, i in enumerate(responsejson['streamingData']['formats']):
+                if int(i['itag']) in avaliable_itags:
+                    continue
+                i['source'] = 'web'
+                self.video_merged_info[str(index)] = i
+                avaliable_itags.append(int(i['itag']))
+            for key, value in responsejson["videoDetails"].items():
+                self.other_video_info[key] = value
+            if self.video_unmerged_info.get("0"):
+                if self.video_unmerged_info["0"].get("signatureCipher"):
+                    self.logger.debug("found unmerged signatured formats from web response")
+                    self.all_formats['unmerged_sig'] = self.video_unmerged_info
+                    self.sortdictbysize("unmerged_unsig")
+                elif self.video_unmerged_info["0"].get("url"):
+                    self.logger.debug("found unmerged unsignatured formats from web response")
+                    self.all_formats['unmerged_unsig'] = self.video_unmerged_info
+                    self.sortdictbysize("unmerged_unsig")
+            if self.video_merged_info.get("0"):
+                if self.video_merged_info["0"].get("signatureCipher"):
+                    self.logger.debug("found merged signatured formats from web response")
+                    if self.premerged:
+                        for key, value in deepcopy(self.video_merged_info).items():
+                            if value.get('content-length'):
+                                continue
+                            newurl = await self._decipher_url(value.get('signatureCipher'))
+                            async with self.session.head(newurl, proxy=self.proxypreset) as r:
+                                logging.debug(f"request info: {json.dumps(self.request_to_dict(r.request_info))}")
+                                self.video_merged_info[key]['contentLength'] = r.headers.get('content-length')
+                                self.video_merged_info[key]['url'] = newurl
+
+                    self.all_formats['merged_sig'] = self.video_merged_info
+                    self.sortdictbysize("merged_unsig")
+                elif self.video_merged_info["0"].get("url"):
+                    self.logger.debug("found merged unsignatured formats from web response")
+                    for key, value in deepcopy(self.video_merged_info).items():
+                        if value.get('content-length'):
                             continue
-                        self.video_unmerged_info[str(index)] = i
-                        avaliable_itags.append(int(i['itag']))
-                    avaliable_itags = list(map(lambda x: int(x[1].get('itag')), self.video_merged_info.items()))
-                    for index, i in enumerate(responsejson['streamingData']['formats']):
-                        if int(i['itag']) in avaliable_itags:
-                            continue
-                        self.video_merged_info[str(index)] = i
-                        avaliable_itags.append(int(i['itag']))
-        avaliable_itags = list(map(lambda x: int(x[1].get('itag')), self.video_unmerged_info.items()))
-        for index, i in enumerate(responsejson['streamingData']['adaptiveFormats']):
-            if int(i['itag']) in avaliable_itags:
-                continue
-            self.video_unmerged_info[str(index)] = i
-            avaliable_itags.append(int(i['itag']))
-        avaliable_itags = list(map(lambda x: int(x[1].get('itag')), self.video_merged_info.items()))
-        for index, i in enumerate(responsejson['streamingData']['formats']):
-            if int(i['itag']) in avaliable_itags:
-                continue
-            self.video_merged_info[str(index)] = i
-            avaliable_itags.append(int(i['itag']))
-        for key, value in responsejson["videoDetails"].items():
-            self.other_video_info[key] = value
-        
+                        if not self.expire:
+                            self.expire = datetime.fromtimestamp(int(re.findall(r"expire=(\d+)", value.get('url'))[0]))
+                        async with self.session.head(value.get('url'), proxy=self.proxypreset) as r:
+                            logging.debug(f"request info: {json.dumps(self.request_to_dict(r.request_info))}")
+                            self.video_merged_info[key]['contentLength'] = r.headers.get('content-length')
+                    self.all_formats['merged_unsig'] = self.video_merged_info
+                    self.sortdictbysize("merged_unsig")
         if not os.path.exists("videoinfo"):
             os.mkdir("videoinfo")
         self.got_functions = False
         self.expire = None
 
         self.all_formats['misc'] = self.other_video_info
-        if self.video_unmerged_info.get("0"):
-            if self.video_unmerged_info["0"].get("signatureCipher"):
-                self.logger.debug("found unmerged signatured formats from web response")
-                self.all_formats['unmerged_sig'] = self.video_unmerged_info
-                self.sortdictbysize("unmerged_unsig")
-            elif self.video_unmerged_info["0"].get("url"):
-                self.logger.debug("found unmerged unsignatured formats from web response")
-                self.all_formats['unmerged_unsig'] = self.video_unmerged_info
-                self.sortdictbysize("unmerged_unsig")
-        if self.video_merged_info.get("0"):
-            if self.video_merged_info["0"].get("signatureCipher"):
-                self.logger.debug("found merged signatured formats from web response")
-                if self.premerged:
-                    for key, value in deepcopy(self.video_merged_info).items():
-                        if value.get('content-length'):
-                            continue
-                        newurl = await self._decipher_url(value.get('signatureCipher'))
-                        async with self.session.head(newurl, proxy=self.proxypreset) as r:
-                            logging.debug(f"request info: {json.dumps(self.request_to_dict(r.request_info))}")
-                            self.video_merged_info[key]['contentLength'] = r.headers.get('content-length')
-                            self.video_merged_info[key]['url'] = newurl
-
-                self.all_formats['merged_sig'] = self.video_merged_info
-                self.sortdictbysize("merged_unsig")
-            elif self.video_merged_info["0"].get("url"):
-                self.logger.debug("found merged unsignatured formats from web response")
-                for key, value in deepcopy(self.video_merged_info).items():
-                    if value.get('content-length'):
-                        continue
-                    if not self.expire:
-                        self.expire = datetime.fromtimestamp(int(re.findall(r"expire=(\d+)", value.get('url'))[0]))
-                    async with self.session.head(value.get('url'), proxy=self.proxypreset) as r:
-                        logging.debug(f"request info: {json.dumps(self.request_to_dict(r.request_info))}")
-                        self.video_merged_info[key]['contentLength'] = r.headers.get('content-length')
-                self.all_formats['merged_unsig'] = self.video_merged_info
-                self.sortdictbysize("merged_unsig")
+        
 
         self.logger.debug(f"Starting API requests")
         headers = {
@@ -1387,9 +1398,16 @@ class ytdownload:
                                 'deviceModel': 'iPhone14,3'},
                         'XBOXONEGUIDE': {'clientVersion': '1.0',
                                         'userAgent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; Xbox; Xbox One) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/46.0.2486.0 Safari/537.36 Edge/13.10553',
+                                        'apikey': 'AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8'},
+                        "TVHTML5_SIMPLY_EMBEDDED_PLAYER": {'clientVersion': '2.0',
+                                        'userAgent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36',
+                                        'apikey': 'AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8'},
+                        "WEB": {'clientVersion': '2.20231030.04.00',
+                                        'userAgent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36',
                                         'apikey': 'AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8'}}
 
         api_responses = {}
+        temp_json = None
         for key, value in clients.items():
             self.logger.debug(f'downloading {key} api')
             json_data = {
@@ -1414,6 +1432,37 @@ class ytdownload:
                             "racyCheckOk": True}
             if 'IOS' in key:
                 json_data['context']['client']['deviceModel'] = value.get('deviceModel')
+            else:
+                try:
+                    del json_data['context']['client']['deviceModel']
+                except:
+                    pass
+            if 'TVHTML5_SIMPLY_EMBEDDED_PLAYER' in key:
+                temp_json = {
+                "context": {
+                    "client": {
+                        "clientName": "TVHTML5_SIMPLY_EMBEDDED_PLAYER",
+                        "clientVersion": "2.0",
+                        "hl": "en",
+                        "timeZone": "UTC",
+                        "utcOffsetMinutes": 0
+                    },
+                    "thirdParty": {
+                        "embedUrl": "https://www.youtube.com/"
+                    }
+                },
+                "videoId": self.video_id,
+                "playbackContext": {
+                    "contentPlaybackContext": {
+                        "html5Preference": "HTML5_PREF_WANTS",
+                        "signatureTimestamp": 19844
+                    }
+                },
+                "contentCheckOk": True,
+                "racyCheckOk": True
+            }
+            else:
+                temp_json = None
             params = {
             'key': value.get('apikey'),
             'prettyPrint': 'false',
@@ -1421,7 +1470,7 @@ class ytdownload:
             async with self.session.post(
             'https://www.youtube.com/youtubei/v1/player/',
             params=params,
-            json=json_data, 
+            json=json_data if not temp_json else temp_json, 
             cookies=cookies,
             headers=self.logheaders if self.needlogin and self.using_env else headers,
             proxy=self.proxypreset
@@ -1459,6 +1508,7 @@ class ytdownload:
                                 content_length = mergedresponse.headers.get("content-length")
                                 if content_length:
                                     value.get('streamingData').get('formats')[i]['contentLength'] = int(content_length)
+                        value.get('streamingData').get('formats')[i]['source'] = key
                         self.all_formats['merged_unsig'][str(i)] = value.get('streamingData').get('formats')[i]
                     self.sortdictbysize('merged_unsig')
                 elif value['streamingData']['formats'][0].get('signatureCipher'):
@@ -1476,6 +1526,7 @@ class ytdownload:
                                 content_length = mergedresponse.headers.get("content-length")
                                 if content_length:
                                     value.get('streamingData').get('formats')[i]['contentLength'] = int(content_length)
+                        value.get('streamingData').get('formats')[i]['source'] = key
                         self.all_formats['merged_sig'][str(i)] = value.get('streamingData').get('formats')[i]
                     self.sortdictbysize('merged_sig')
             if value['streamingData'].get('adaptiveFormats'):
@@ -1486,6 +1537,7 @@ class ytdownload:
                         if int(value['streamingData']['adaptiveFormats'][i].get('itag')) in avaliable_itags:
                             self.logger.debug(f"{value['streamingData']['adaptiveFormats'][i].get('itag')} already in")
                             continue
+                        value['streamingData']['adaptiveFormats'][i]['source'] = key
                         self.all_formats['unmerged_unsig'][str(i)] = value['streamingData']['adaptiveFormats'][i]
                     self.sortdictbysize('unmerged_unsig')
                 elif value['streamingData']['adaptiveFormats'][0].get('signatureCipher'):
@@ -1495,6 +1547,7 @@ class ytdownload:
                         if int(value['streamingData']['adaptiveFormats'][i].get('itag')) in avaliable_itags:
                             self.logger.debug(f"{value['streamingData']['adaptiveFormats'][i].get('itag')} already in")
                             continue
+                        value['streamingData']['adaptiveFormats'][i]['source'] = key
                         self.all_formats['unmerged_sig'][str(i)] = value['streamingData']['adaptiveFormats'][i]
                     self.sortdictbysize('unmerged_sig')
         for key, value in self.all_formats.items():
