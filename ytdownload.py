@@ -104,6 +104,7 @@ class ytdownload:
         self.progress = None
         self.session = None
         self.title = None
+        self.expire = None
         for key, value in kwargs.items():
             if value == None:
                 continue
@@ -451,7 +452,7 @@ class ytdownload:
             video_ids = []
             audio_ids = []
             if not self.manifest and not self.premerged:
-                avaliable = 'unmerged_unsig' if self.all_formats.get('unmerged_unsig') and self.needlogin else 'unmerged_sig' if not self.all_formats.get("unmerged_unsig") or not self.needlogin else "unmerged_unsig"
+                avaliable = "unmerged_sig" if self.all_formats.get("unmerged_sig") else "unmerged_unsig"
                 self.logger.debug(f"downloading {avaliable}")
                 for key, value in deepcopy(self.all_formats[avaliable]).items():
                     if value.get('contentLength') and int(value.get('contentLength'))/(1024*1024)>self.maxsize:
@@ -559,7 +560,7 @@ class ytdownload:
                 self.audio['url'] = await self._decipher_url(self.audio.get('signatureCipher') if self.audio.get('signatureCipher') else self.audio['url'], unciphered=False if self.audio.get('signatureCipher') else True)
             elif self.premerged and not self.manifest:
                 premerged_video = []
-                avaliable = 'merged_unsig' if self.all_formats.get('merged_unsig') and self.needlogin else 'merged_sig' if not self.all_formats.get("merged_unsig") or not self.needlogin else "merged_unsig"
+                avaliable = "merged_sig" if self.all_formats.get("merged_sig") else "merged_unsig"
                 for key, value in self.all_formats[avaliable].items():
                     if self.codec and self.codec in value.get('mimeType'):
                         premerged_video.append(key)
@@ -589,7 +590,7 @@ class ytdownload:
                     raise self.no_valid_formats(f"No valid formats under the max size {self.maxsize}")
         elif self.itag:
             if self.itag in [17, 18, 22]:    
-                avaliable = 'merged_unsig' if self.all_formats.get('merged_unsig') and self.needlogin else 'merged_sig' if not self.all_formats.get("merged_unsig") or not self.needlogin else "merged_unsig"
+                avaliable = "merged_sig" if self.all_formats.get("merged_sig") else "merged_unsig"
                 for key, value in self.all_formats[avaliable].items():
                     if int(value.get('itag')) == int(self.itag):
                         self.video = value
@@ -632,7 +633,7 @@ class ytdownload:
                 if not (self.video or self.audio or self.manifest_video):
                     raise self.no_valid_formats(f"Couldn't find any formats with itag {self.itag}")
                 if not self.onlyitag:
-                    avaliable = 'unmerged_unsig' if self.all_formats.get('unmerged_unsig') and self.needlogin else 'unmerged_sig' if not self.all_formats.get("unmerged_unsig") or not self.needlogin else "unmerged_unsig"
+                    avaliable = "unmerged_sig" if self.all_formats.get("unmerged_sig") else "unmerged_unsig"
 
                     if self.video:
                         for key, value in self.all_formats[avaliable].items():
@@ -647,7 +648,7 @@ class ytdownload:
                                 self.video['url'] = await self._decipher_url(self.video['signatureCipher'] if self.video.get('signatureCipher') else self.video.get('url'), unciphered=True if self.video.get('url') else False)
                                 break
         elif not self.premerged and not self.manifest:
-            avaliable = 'unmerged_unsig' if self.all_formats.get('unmerged_unsig') and self.needlogin else 'unmerged_sig' if not self.all_formats.get("unmerged_unsig") or not self.needlogin else "unmerged_unsig"
+            avaliable = "unmerged_sig" if self.all_formats.get("unmerged_sig") else "unmerged_unsig"
             video_ids = []
             audio_ids = []
             for key, value in self.all_formats[avaliable].items():
@@ -677,7 +678,7 @@ class ytdownload:
                 self.audio = self.all_formats[avaliable][audio_ids[0]]
                 self.audio['url'] = await self._decipher_url(self.audio['signatureCipher'] if self.audio.get('signatureCipher') else self.audio.get('url'), unciphered=True if self.audio.get('url') else False)
         elif self.premerged and not self.manifest:
-             avaliable = 'merged_unsig' if self.all_formats.get('merged_unsig') and self.needlogin else 'merged_sig' if not self.all_formats.get("merged_unsig") or not self.needlogin else "merged_unsig"
+             avaliable = "merged_sig" if self.all_formats.get("merged_sig") else "merged_unsig"
              for key, value in self.all_formats[avaliable].items():
                  self.video = value
                  break
@@ -1653,7 +1654,7 @@ class ytdownload:
         secfunctionpattern = r';(.*?)\.(.*?)\(a'
         secondfunctionname = re.findall(secfunctionpattern, wholefunctionsig)[0][0]
         self.logger.debug(f"found second function, name: {secondfunctionname}")
-        secondfunction = re.findall(fr'(var {secondfunctionname}=([\s\S]*?));var', basejstext[basejstext.find(f'var {secondfunctionname}=')-50:basejstext.find(f'var {secondfunctionname}=')+len(f'var {secondfunctionname}=') + 200])[0][0]
+        secondfunction = re.findall(fr'(var {re.escape(secondfunctionname)}=([\s\S]*?));var', basejstext[basejstext.find(f'var {secondfunctionname}=')-50:basejstext.find(f'var {secondfunctionname}=')+len(f'var {secondfunctionname}=') + 200])[0][0]
         self.logger.debug(f"whole function: \n{secondfunction}")
         thirdfunctionpattern = r'((.*?)=function\(a\)\{var b=([\s\S]*?)return b.join\(\"\"\)};)'
         matches = re.findall(thirdfunctionpattern, basejstext[basejstext.find('return b.join("")};')-8000:basejstext.find('return b.join("")};')+len('return b.join("")};')])
