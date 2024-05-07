@@ -1561,9 +1561,7 @@ class ytdownload:
         if not self.expire:
             for ftype, baloney in self.all_formats.items():
                 for key, value in baloney.items():
-                    if isinstance(value, str):
-                        continue
-                    if isinstance(value, bool):
+                    if not isinstance(value, dict):
                         continue
                     if value.get('url'):
                         self.expire = datetime.fromtimestamp(int(re.findall(r"expire=(\d+)", value.get('url'))[0]))
