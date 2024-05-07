@@ -1464,7 +1464,7 @@ class ytdownload:
             }
             elif self.needlogin:
                 temp_json = None
-            else:
+            elif 'TVHTML5_SIMPLY_EMBEDDED_PLAYER' in key and not self.needlogin:
                 continue
             params = {
             'key': value.get('apikey'),
