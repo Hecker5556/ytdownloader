@@ -1438,7 +1438,7 @@ class ytdownload:
                     del json_data['context']['client']['deviceModel']
                 except:
                     pass
-            if 'TVHTML5_SIMPLY_EMBEDDED_PLAYER' in key:
+            if 'TVHTML5_SIMPLY_EMBEDDED_PLAYER' in key and self.needlogin:
                 temp_json = {
                 "context": {
                     "client": {
@@ -1462,8 +1462,10 @@ class ytdownload:
                 "contentCheckOk": True,
                 "racyCheckOk": True
             }
-            else:
+            elif self.needlogin:
                 temp_json = None
+            else:
+                continue
             params = {
             'key': value.get('apikey'),
             'prettyPrint': 'false',
