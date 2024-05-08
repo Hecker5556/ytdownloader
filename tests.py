@@ -9,7 +9,7 @@ LINKS = {
 }
 
 async def normal(url: str):
-    async with ytdownload() as norm:
+    async with ytdownload(verbose=False) as norm:
         result = await norm.download(url)
     print(json.dumps(result, indent=4))
     return result
@@ -35,4 +35,17 @@ async def own_session():
             ydl.session = session
             await ydl.download(LINKS['normal'])
 
-asyncio.run(own_session())
+async def get_playlist_links():
+    async with ytdownload() as ydl:
+        await ydl.get_playlist(LINKS['playlist'])
+        links = ydl.links
+async def catch_error():
+    async with ytdownload(maxsize=1) as ydl:
+        try:
+            result = await ydl.download("https://youtu.be/yNFEaKrBnIM?si=8aRgCOrNOff_UKqC")
+        except ydl.no_valid_formats:
+            print("no valid formats")
+# asyncio.run(normal(LINKS['age restricted']))
+# asyncio.run(normal(LINKS['music']))
+# asyncio.run(normal(LINKS['age restricted']))
+asyncio.run(catch_error())

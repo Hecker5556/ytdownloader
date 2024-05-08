@@ -283,10 +283,12 @@ class ytdownload:
                             await self._pick_formats()
                             res = await self._download_fr()
                             break
+                        except self.no_valid_formats:
+                            self.logger.info(f"{Fore.RED}errored on {self.link}, no valid formats matching settings{Fore.RESET}")
                         except Exception as e:
                             self.logger.debug(traceback.format_exc())
                             self.logger.info(f"{Fore.RED}errored on {self.link}, use verbose to see error{Fore.RESET}")
-                            continue
+                        self.logger.info("trying again...")
                     if not res:
                         self.logger.info(f"couldnt download {link}")
                         continue
@@ -296,6 +298,7 @@ class ytdownload:
             else:
                 self.logger.info("fetching video information")
                 res = None
+                error = ""
                 for _ in range(2):
                     try:
                         await self.get_video_info()
@@ -304,12 +307,17 @@ class ytdownload:
                         await self._pick_formats()
                         res = await self._download_fr()
                         break
+                    except self.no_valid_formats:
+                        self.logger.info(f"{Fore.RED}errored on {self.link}, no valid formats matching settings{Fore.RESET}")
+                        error = "no valid formats"
                     except Exception as e:
                         self.logger.debug(traceback.format_exc())
                         self.logger.info(f"errored on {self.link}, use verbose to see error")
+                        error = str(e)
+                    self.logger.info("trying again...")
                 if not res:
                     self.logger.info(f"{Fore.RED}couldnt download {self.link}{Fore.RESET}")
-                    return None
+                    return error
                 return res
     async def search(self, query: str = None):
         if not self.query:
