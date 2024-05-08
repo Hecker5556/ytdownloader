@@ -317,7 +317,8 @@ class ytdownload:
                     self.logger.info("trying again...")
                 if not res:
                     self.logger.info(f"{Fore.RED}couldnt download {self.link}{Fore.RESET}")
-                    return error
+                    if "no valid formats" in error:
+                        raise self.no_valid_formats(f"No valid formats for video https://youtube.com/watch?v={self.video_id}")
                 return res
     async def search(self, query: str = None):
         if not self.query:
