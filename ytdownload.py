@@ -958,8 +958,11 @@ class ytdownload:
         os.remove(filename_vid)
         os.remove(filename_aud)
         self.ext = ext_vid
+    class download_error(Exception):
+        def __init__(self, *args: object) -> None:
+            super().__init__(*args)
     async def _download(self, url: str, filename: str, content_length: int):
-        if not self.session:
+        if not self.session or self.session.closed:
             self.session = aiohttp.ClientSession(connector=self._make_connector())
         headers = {'userAgent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36'}
         async with aiofiles.open(filename, 'wb') as f1:
@@ -981,7 +984,7 @@ class ytdownload:
                         return
                     if r.status not in [200, 206]:
                         self.logger.info(f"bad download, status {Fore.RED}{r.status}{Fore.RESET}")
-                        return
+                        raise self.download_error(f"Error downloading, status: {r.status}")
                     while True:
                         chunk = await r.content.read(1024)
                         if not chunk:
@@ -1012,7 +1015,7 @@ class ytdownload:
                         return
                     if r.status not in [200, 206]:
                         self.logger.info(f"bad download, status {Fore.RED}{r.status}{Fore.RESET}")
-                        return
+                        raise self.download_error(f"Error downloading, status: {r.status}")
 
                     while True:
                         chunk = await r.content.read(1024)
@@ -1320,14 +1323,14 @@ class ytdownload:
                     for key, value in responsejson["videoDetails"].items():
                         self.other_video_info[key] = value
         else:
-            avaliable_itags = list(map(lambda x: int(x[1].get('itag')), self.video_unmerged_info.items()))
+            avaliable_itags = [int(value['itag']) for value in self.video_unmerged_info.values() if value['source'] != 'web']
             for index, i in enumerate(responsejson['streamingData']['adaptiveFormats']):
                 if int(i['itag']) in avaliable_itags:
                     continue
                 i['source'] = 'web'
                 self.video_unmerged_info[str(index)] = i
                 avaliable_itags.append(int(i['itag']))
-            avaliable_itags = list(map(lambda x: int(x[1].get('itag')), self.video_merged_info.items()))
+            avaliable_itags = [int(value['itag']) for value in self.video_merged_info.values() if value['source'] != 'web']
             for index, i in enumerate(responsejson['streamingData']['formats']):
                 if int(i['itag']) in avaliable_itags:
                     continue
@@ -1510,7 +1513,7 @@ class ytdownload:
                 if value['streamingData']['formats'][0].get('url'):
                     self.logger.debug(f"found merged unsig from {key}")
                     for i in range(len(value.get('streamingData').get('formats'))):
-                        avaliable_itags = list(map(lambda x: int(x[1].get('itag')), self.all_formats['merged_unsig'].items()))
+                        avaliable_itags = [int(value['itag']) for value in self.all_formats['merged_unsig'].values() if value['source'] != 'web']
                         if int(value.get('streamingData').get('formats')[i].get('itag')) in avaliable_itags:
                             continue
                         if self.premerged:
@@ -1526,7 +1529,7 @@ class ytdownload:
                 elif value['streamingData']['formats'][0].get('signatureCipher'):
                     self.logger.debug(f"found merged sig from {key}")
                     for i in range(len(value.get('streamingData').get('formats'))):
-                        avaliable_itags = list(map(lambda x: int(x[1].get('itag')), self.all_formats['merged_sig'].items()))
+                        avaliable_itags = [int(value['itag']) for value in self.all_formats['merged_sig'].values() if value['source'] != 'web']
                         if int(value.get('streamingData').get('formats')[i].get('itag')) in avaliable_itags:
                             continue
                         if self.premerged:
@@ -1545,7 +1548,7 @@ class ytdownload:
                 if value['streamingData']['adaptiveFormats'][0].get('url'):
                     self.logger.debug(f"found unmerged unsig in {key}")
                     for i in range(len(value['streamingData']['adaptiveFormats'])):
-                        avaliable_itags = list(map(lambda x: int(x[1].get('itag')), self.all_formats['unmerged_unsig'].items()))
+                        avaliable_itags = [int(value['itag']) for value in self.all_formats['unmerged_unsig'].values() if value['source'] != 'web']
                         if int(value['streamingData']['adaptiveFormats'][i].get('itag')) in avaliable_itags:
                             self.logger.debug(f"{value['streamingData']['adaptiveFormats'][i].get('itag')} already in")
                             continue
@@ -1555,7 +1558,7 @@ class ytdownload:
                 elif value['streamingData']['adaptiveFormats'][0].get('signatureCipher'):
                     self.logger.debug(f"found unmerged sig in {key}")
                     for i in range(len(value['streamingData']['adaptiveFormats'])):
-                        avaliable_itags = list(map(lambda x: int(x[1].get('itag')), self.all_formats['unmerged_sig'].items()))
+                        avaliable_itags = [int(value['itag']) for value in self.all_formats['unmerged_sig'].values() if value['source'] != 'web']
                         if int(value['streamingData']['adaptiveFormats'][i].get('itag')) in avaliable_itags:
                             self.logger.debug(f"{value['streamingData']['adaptiveFormats'][i].get('itag')} already in")
                             continue
