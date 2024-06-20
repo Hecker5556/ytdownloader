@@ -421,7 +421,7 @@ class ytdownload:
             responsejson = json.loads(response)
         if not responsejson.get('contents').get('twoColumnWatchNextResults').get('playlist'):
             raise ValueError("playlist is unavaliable!")
-        self.title = responsejson['contents']['twoColumnWatchNextResults']['playlist']['playlist']['title']
+        self.title = "".join([x for x in responsejson['contents']['twoColumnWatchNextResults']['playlist']['playlist']['title'] if x not in '"\\/:*?<>|().'])
         responsejson = responsejson['contents']['twoColumnWatchNextResults']['playlist']['playlist']['contents']
         self.links =  [f'https://youtube.com/watch?v={i["playlistPanelVideoRenderer"]["videoId"]}' for i in responsejson if not i.get('messageRenderer')]
     async def _pick_formats(self):
@@ -781,7 +781,7 @@ class ytdownload:
             self.result_file = f"merged_{int(datetime.now().timestamp())}.{self.ext}"
             await self._manifest_download()
         if self.title and not os.path.exists(self.title):
-            os.mkdir("".join([x for x in self.title if x not in '"\\/:*?<>|()']))
+            os.mkdir(self.title)
         clear = lambda x: "".join([i for i in x if i not in "\\/:*?<>|()"])
         give_file = lambda folder, title, date, ext: f"{clear(folder)}/"+clear(title)+date+f".{ext}" if folder else clear(title)+date+f".{ext}"
         resultfile = give_file(self.title, self.all_formats['misc'].get('title') if not self.filename else self.filename, "", self.ext)
