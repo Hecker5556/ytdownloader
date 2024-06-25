@@ -106,6 +106,7 @@ class ytdownload:
         self.title = None
         self.expire = None
         self.disable_web = True # youtube's web response has been bugging, returning 403s, even on youtube it does it. on youtube after a few 403s it will fall back to some other method where it sends encrypted data to get the video itag it wants.
+        self.tempfiles = []
         for key, value in kwargs.items():
             if value == None:
                 continue
@@ -274,7 +275,7 @@ class ytdownload:
                     self.logger.debug(f"getting {link}")
                     self.link = link
                     res = None
-                    for _ in range(2):
+                    for _ in range(3):
                         try:
                             await self.get_video_info()
                             if self.nodownload:
@@ -284,6 +285,8 @@ class ytdownload:
                             await self._pick_formats()
                             res = await self._download_fr()
                             break
+                        except self.download_error:
+                            self.logger.info(f"{Fore.RED}failed to connect to url{Fore.RESET}")
                         except self.no_valid_formats:
                             self.logger.info(f"{Fore.RED}errored on {self.link}, no valid formats matching settings{Fore.RESET}")
                         except Exception as e:
@@ -300,6 +303,7 @@ class ytdownload:
                 self.logger.info("fetching video information")
                 res = None
                 error = ""
+                self.error = None
                 for _ in range(3):
                     try:
                         await self.get_video_info()
@@ -308,21 +312,26 @@ class ytdownload:
                         await self._pick_formats()
                         res = await self._download_fr()
                         break
-                    except self.download_error:
+                    except self.download_error as e:
                         self.logger.info(f"{Fore.RED}failed to connect to url{Fore.RESET}")
                         error = "failed to connect to url"
-                    except self.no_valid_formats:
+                        self.error = e
+                    except self.no_valid_formats as e:
                         self.logger.info(f"{Fore.RED}errored on {self.link}, no valid formats matching settings{Fore.RESET}")
                         error = "no valid formats"
+                        self.error = e
                     except Exception as e:
                         self.logger.debug(traceback.format_exc())
                         self.logger.info(f"errored on {self.link}, use verbose to see error")
                         error = str(e)
+                        self.error = e
                     self.logger.info("trying again...")
                 if not res:
                     self.logger.info(f"{Fore.RED}couldnt download {self.link}{Fore.RESET}")
                     if "no valid formats" in error:
                         raise self.no_valid_formats(f"No valid formats for video https://youtube.com/watch?v={self.video_id}")
+                else:
+                    self.error = None
                 return res
     async def search(self, query: str = None):
         if not self.query:
@@ -711,6 +720,7 @@ class ytdownload:
             if self.audioonly:
                 self.ext = "m4a" if "mp4a" in self.audio['mimeType'] else 'opus' if 'webm' in self.audio['mimeType'] else 'ec-3' if 'ec-3' in self.audio['mimeType'] else 'ac-3'
                 filename = f"temp_audio_{int(datetime.now().timestamp())}.{self.ext}"
+                self.tempfiles.append(filename)
                 logging.debug(f"Downloading audio itag {self.audio.get('itag')}")
                 while True:
                     await self._download(self.audio['url'], filename, None if not self.audio.get('contentLength') else int(self.audio['contentLength']))
@@ -725,6 +735,7 @@ class ytdownload:
             elif self.video and not self.audio and not self.video.get('type'):
                 ext_vid = "mp4" if ("avc1" in self.video['mimeType'] or 'av01' in self.video['mimeType']) else 'webm'
                 filename_vid = f"temp_video_{int(datetime.now().timestamp())}.{ext_vid}"
+                self.tempfiles.append(filename_vid)
                 logging.debug(f"Downloading video itag {self.video.get('itag')}")
                 while True:
                     await self._download(self.video['url'], filename_vid, None if not self.video.get('contentLength') else int(self.audio['contentLength']) if self.audio.get('contentLength') else None)
@@ -740,6 +751,7 @@ class ytdownload:
             elif not self.video and self.audio:
                 self.ext = "m4a" if "mp4a" in self.audio['mimeType'] else 'opus' if 'webm' in self.audio['mimeType'] else 'ec-3' if 'ec-3' in self.audio['mimeType'] else 'ac-3'
                 filename = f"temp_audio_{int(datetime.now().timestamp())}.{self.ext}"
+                self.tempfiles.append(filename)
                 logging.debug(f"Downloading audio itag {self.audio.get('itag')}")
                 while True:
                     await self._download(self.audio['url'], filename, None if not self.audio.get('contentLength') else int(self.audio['contentLength']))
@@ -757,12 +769,14 @@ class ytdownload:
             elif self.video and self.video.get('type'):
                 ext_vid = "mp4" if ("avc1" in self.video['mimeType'] or 'av01' in self.video['mimeType']) else 'webm'
                 filename_vid = f"temp_video_{int(datetime.now().timestamp())}.{ext_vid}"
+                self.tempfiles.append(filename_vid)
                 logging.debug(f"Downloading video itag {self.video.get('itag')}")
                 await self._dash_download(filename_vid)
                 if self.audio:
                     ext_aud = "m4a" if "mp4a" in self.audio['mimeType'] else 'opus' if 'webm' in self.audio['mimeType'] else 'ec-3' if 'ec-3' in self.audio['mimeType'] else 'ac-3'
                     compatible = True if ext_vid == "mp4" and ext_aud in ['m4a', 'ec-3', 'ac-3'] else True if ext_vid == 'webm' and ext_aud in ['opus'] else False
                     filename_aud = f"temp_audio_{int(datetime.now().timestamp())}.{ext_aud}"
+                    self.tempfiles.append(filename_aud)
                     logging.debug(f"Downloading audio itag {self.audio.get('itag')}")
                     await self._download(self.audio['url'], filename, None if not self.audio.get('contentLength') else int(self.audio['contentLength']))
                     self.result_file = f"merged_{int(datetime.now().timestamp())}.{ext_vid}"
@@ -783,6 +797,7 @@ class ytdownload:
                 self.ext = 'm4a'
                 logging.debug(f"Downloading audio itag {self.manifest_video.get('audio_itag')}")
             self.result_file = f"merged_{int(datetime.now().timestamp())}.{self.ext}"
+            self.tempfiles.append(self.result_file)
             await self._manifest_download()
         if self.title and not os.path.exists(self.title):
             os.mkdir(self.title)
@@ -941,6 +956,8 @@ class ytdownload:
         ext_aud = "m4a" if "mp4a" in self.audio['mimeType'] else 'opus' if 'webm' in self.audio['mimeType'] else 'ec-3' if 'ec-3' in self.audio['mimeType'] else 'ac-3'
         filename_aud = f"temp_audio_{int(datetime.now().timestamp())}.{ext_aud}"
         compatible = True if ext_vid == "mp4" and ext_aud in ['m4a', 'ec-3', 'ac-3'] else True if ext_vid == 'webm' and ext_aud in ['opus'] else False
+        self.tempfiles.append(filename_vid)
+        self.tempfiles.append(filename_aud)
         count = 1
         while True:
             await self._download(self.video['url'], filename_vid, None if not self.video.get('contentLength') else int(self.video['contentLength']))
@@ -1760,8 +1777,17 @@ class ytdownload:
             self.progress.close()
     def __enter__(self):
         return self
-    def __exit__(self, a, b, c,):
-        return self
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if self.progress:
+            self.progress.close()
+        if self.error:
+            if hasattr(self, "tempfiles") and self.tempfiles:
+                for file in self.tempfiles:
+                    try:
+                        os.remove(file)
+                    except:
+                        pass
+        return None
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description='download youtube videos in different ways, file sizes')
