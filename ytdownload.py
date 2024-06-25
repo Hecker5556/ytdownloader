@@ -105,6 +105,7 @@ class ytdownload:
         self.session = None
         self.title = None
         self.expire = None
+        self.disable_web = True # youtube's web response has been bugging, returning 403s, even on youtube it does it. on youtube after a few 403s it will fall back to some other method where it sends encrypted data to get the video itag it wants.
         for key, value in kwargs.items():
             if value == None:
                 continue
@@ -299,7 +300,7 @@ class ytdownload:
                 self.logger.info("fetching video information")
                 res = None
                 error = ""
-                for _ in range(2):
+                for _ in range(3):
                     try:
                         await self.get_video_info()
                         if self.nodownload:
@@ -307,6 +308,9 @@ class ytdownload:
                         await self._pick_formats()
                         res = await self._download_fr()
                         break
+                    except self.download_error:
+                        self.logger.info(f"{Fore.RED}failed to connect to url{Fore.RESET}")
+                        error = "failed to connect to url"
                     except self.no_valid_formats:
                         self.logger.info(f"{Fore.RED}errored on {self.link}, no valid formats matching settings{Fore.RESET}")
                         error = "no valid formats"
@@ -730,7 +734,7 @@ class ytdownload:
                         break
                     else:
                         if count == 2:
-                            raise ConnectionError(f"failed to download audio")
+                            raise ConnectionError(f"failed to download video")
                         await asyncio.sleep(count*5)
                         count += 1
             elif not self.video and self.audio:
@@ -1034,6 +1038,7 @@ class ytdownload:
                         r = await self.session.get(url, proxy=self.proxypreset, headers=headers)
                     if r.status not in [200, 206]:
                         self.logger.info(f"bad download, status {Fore.RED}{r.status}{Fore.RESET}")
+                        raise self.download_error(f"Failed to download, status: {r.status}")
                     logging.debug(f"request info: {json.dumps(self.request_to_dict(r.request_info))}")
                     while True:
                         chunk = await r.content.read(1024)
@@ -1128,6 +1133,10 @@ class ytdownload:
         for key, value in request.headers.items():
             headers[key] = deepcopy(value)
         return {'url': str(request.url), 'headers': headers, 'method': request.method}
+    def _check_disable_web(self, value: dict):
+        if self.disable_web:
+            return value['source'].lower() != 'web' and value['source'].upper() != 'TVHTML5_SIMPLY_EMBEDDED_PLAYER'
+        return True
     async def _get_video_info(self):
         cookies = {
         "PREF": "f4=4000000&f6=40000000&tz=Europe.Warsaw&f5=30000&f7=100",
@@ -1224,20 +1233,20 @@ class ytdownload:
                 }
 
                 logparams = {
-                    'key': env.apikey,
+                    'key': "AIzaSyB-63vPrdThhKuerbB2N_l7Kwwcxj6yUA",
                     'prettyPrint': 'false',
                 }
 
                 logjson_data = {
                     'context': {
                         'client': {
-                            'hl': 'en',
-                            'gl': 'PL',
-                            'userAgent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36',
-                            'clientName': 'WEB',
-                            'clientVersion': '2.20231030.04.00',
-                            'acceptHeader': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-                        },
+                                'clientName': "IOS",
+                                'clientVersion': '17.33.2', 
+                                'userAgent': 'com.google.ios.youtube/17.33.2 (iPhone14,3; U; CPU iOS 15_6 like Mac OS X)',
+                                'deviceModel': 'iPhone14,3',
+                                'acceptHeader': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+                                'hl': 'en',
+                            },
                         'user': {
                             'lockedSafetyMode': False,
                         },
@@ -1261,20 +1270,6 @@ class ytdownload:
                     logging.debug(f"request info: {json.dumps(self.request_to_dict(r.request_info))}")
                     response = await r.text("utf-8")
                     responsejson = json.loads(response)
-                # avaliable_itags = list(map(lambda x: int(x[1].get('itag')), self.video_unmerged_info.items()))
-                # for index, i in enumerate(responsejson['streamingData']['adaptiveFormats']):
-                #     if int(i['itag']) in avaliable_itags:
-                #         continue
-                #     i['source'] = 'logged_web'
-                #     self.video_unmerged_info[str(index)] = i
-                #     avaliable_itags.append(int(i['itag']))
-                # avaliable_itags = list(map(lambda x: int(x[1].get('itag')), self.video_merged_info.items()))
-                # for index, i in enumerate(responsejson['streamingData']['formats']):
-                #     if int(i['itag']) in avaliable_itags:
-                #         continue
-                #     i['source'] = 'logged_web'
-                #     self.video_merged_info[str(index)] = i
-                #     avaliable_itags.append(int(i['itag']))
                 for key, value in responsejson["videoDetails"].items():
                     self.other_video_info[key] = value
             except:
@@ -1323,14 +1318,14 @@ class ytdownload:
                     for key, value in responsejson["videoDetails"].items():
                         self.other_video_info[key] = value
         else:
-            avaliable_itags = [int(value['itag']) for value in self.video_unmerged_info.values() if value['source'] != 'web']
+            avaliable_itags = [int(value['itag']) for value in self.video_unmerged_info.values() if self._check_disable_web(value)]
             for index, i in enumerate(responsejson['streamingData']['adaptiveFormats']):
                 if int(i['itag']) in avaliable_itags:
                     continue
                 i['source'] = 'web'
                 self.video_unmerged_info[str(index)] = i
                 avaliable_itags.append(int(i['itag']))
-            avaliable_itags = [int(value['itag']) for value in self.video_merged_info.values() if value['source'] != 'web']
+            avaliable_itags = [int(value['itag']) for value in self.video_merged_info.values() if self._check_disable_web(value)]
             for index, i in enumerate(responsejson['streamingData']['formats']):
                 if int(i['itag']) in avaliable_itags:
                     continue
@@ -1496,7 +1491,8 @@ class ytdownload:
                 api_responses[key] = apiresponse
 
         for count, (key, value) in enumerate(api_responses.items()):
-            alreadyin = False
+            if key == 'WEB' and self.disable_web:
+                continue
             if not value.get('streamingData'):
                 self.logger.debug(f"Nothing avaliable from {key}")
                 continue
@@ -1513,7 +1509,7 @@ class ytdownload:
                 if value['streamingData']['formats'][0].get('url'):
                     self.logger.debug(f"found merged unsig from {key}")
                     for i in range(len(value.get('streamingData').get('formats'))):
-                        avaliable_itags = [int(value['itag']) for value in self.all_formats['merged_unsig'].values() if value['source'] != 'web']
+                        avaliable_itags = [int(value['itag']) for value in self.all_formats['merged_unsig'].values() if self._check_disable_web(value)]
                         if int(value.get('streamingData').get('formats')[i].get('itag')) in avaliable_itags:
                             continue
                         if self.premerged:
@@ -1529,7 +1525,7 @@ class ytdownload:
                 elif value['streamingData']['formats'][0].get('signatureCipher'):
                     self.logger.debug(f"found merged sig from {key}")
                     for i in range(len(value.get('streamingData').get('formats'))):
-                        avaliable_itags = [int(value['itag']) for value in self.all_formats['merged_sig'].values() if value['source'] != 'web']
+                        avaliable_itags = [int(value['itag']) for value in self.all_formats['merged_sig'].values() if self._check_disable_web(value)]
                         if int(value.get('streamingData').get('formats')[i].get('itag')) in avaliable_itags:
                             continue
                         if self.premerged:
@@ -1548,7 +1544,7 @@ class ytdownload:
                 if value['streamingData']['adaptiveFormats'][0].get('url'):
                     self.logger.debug(f"found unmerged unsig in {key}")
                     for i in range(len(value['streamingData']['adaptiveFormats'])):
-                        avaliable_itags = [int(value['itag']) for value in self.all_formats['unmerged_unsig'].values() if value['source'] != 'web']
+                        avaliable_itags = [int(value['itag']) for value in self.all_formats['unmerged_unsig'].values() if self._check_disable_web(value)]
                         if int(value['streamingData']['adaptiveFormats'][i].get('itag')) in avaliable_itags:
                             self.logger.debug(f"{value['streamingData']['adaptiveFormats'][i].get('itag')} already in")
                             continue
@@ -1558,7 +1554,7 @@ class ytdownload:
                 elif value['streamingData']['adaptiveFormats'][0].get('signatureCipher'):
                     self.logger.debug(f"found unmerged sig in {key}")
                     for i in range(len(value['streamingData']['adaptiveFormats'])):
-                        avaliable_itags = [int(value['itag']) for value in self.all_formats['unmerged_sig'].values() if value['source'] != 'web']
+                        avaliable_itags = [int(value['itag']) for value in self.all_formats['unmerged_sig'].values() if self._check_disable_web(value)]
                         if int(value['streamingData']['adaptiveFormats'][i].get('itag')) in avaliable_itags:
                             self.logger.debug(f"{value['streamingData']['adaptiveFormats'][i].get('itag')} already in")
                             continue
@@ -1762,6 +1758,10 @@ class ytdownload:
             await self.session.close()
         if self.progress:
             self.progress.close()
+    def __enter__(self):
+        return self
+    def __exit__(self, a, b, c,):
+        return self
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description='download youtube videos in different ways, file sizes')
@@ -1787,13 +1787,13 @@ if __name__ == "__main__":
     args = parser.parse_args()
     kwargs = vars(args)
     start = datetime.now()
-    the = ytdownload(**kwargs)
-    logging.debug(f"used arguments: \n{json.dumps(kwargs, indent=4)}")
-    result = asyncio.run(the.download())
-    finish=datetime.now()
-    duration = finish-start
-    print(f"it took {int(duration.total_seconds()//60):02}:{int(duration.total_seconds()%60):02}")
-    if not isinstance(result, prettytable.PrettyTable):
-        print(json.dumps(result, indent=4))
-    else:
-        print(result)
+    with ytdownload(**kwargs) as the:
+        logging.debug(f"used arguments: \n{json.dumps(kwargs, indent=4)}")
+        result = asyncio.run(the.download())
+        finish=datetime.now()
+        duration = finish-start
+        print(f"it took {int(duration.total_seconds()//60):02}:{int(duration.total_seconds()%60):02}")
+        if not isinstance(result, prettytable.PrettyTable):
+            print(json.dumps(result, indent=4))
+        else:
+            print(result)
