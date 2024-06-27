@@ -1510,6 +1510,8 @@ class ytdownload:
         for count, (key, value) in enumerate(api_responses.items()):
             if key == 'WEB' and self.disable_web:
                 continue
+            if key == "TVHTML5_SIMPLY_EMBEDDED_PLAYER" and self.needlogin:
+                continue
             if not value.get('streamingData'):
                 self.logger.debug(f"Nothing avaliable from {key}")
                 continue
