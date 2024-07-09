@@ -474,7 +474,7 @@ class ytdownload:
             video_ids = []
             audio_ids = []
             if not self.manifest and not self.premerged:
-                avaliable = "unmerged_unsig" if self.all_formats.get("unmerged_unsig") and self.needlogin else "unmerged_unsig" if not self.all_formats.get("unmerged_sig") else "unmerged_sig"
+                avaliable = "unmerged_unsig" if (self.all_formats.get("unmerged_unsig") and self.needlogin) else "unmerged_unsig" if not self.all_formats.get("unmerged_sig") else "unmerged_sig" if not all(map(lambda x: x.get('source') == 'web', self.all_formats['unmerged_sig'].values())) else 'unmerged_unsig'
                 self.logger.debug(f"downloading {avaliable}")
                 for key, value in deepcopy(self.all_formats[avaliable]).items():
                     if value.get('contentLength') and int(value.get('contentLength'))/(1024*1024)>self.maxsize:
@@ -655,7 +655,7 @@ class ytdownload:
                 if not (self.video or self.audio or self.manifest_video):
                     raise self.no_valid_formats(f"Couldn't find any formats with itag {self.itag}")
                 if not self.onlyitag:
-                    avaliable = "unmerged_unsig" if self.all_formats.get("unmerged_unsig") and self.needlogin else "unmerged_unsig" if not self.all_formats.get("unmerged_sig") else "unmerged_sig"
+                    avaliable = "unmerged_unsig" if (self.all_formats.get("unmerged_unsig") and self.needlogin) else "unmerged_unsig" if not self.all_formats.get("unmerged_sig") else "unmerged_sig" if not all(map(lambda x: x.get('source') == 'web', self.all_formats['unmerged_sig'].values())) else 'unmerged_unsig'
 
                     if self.video:
                         for key, value in self.all_formats[avaliable].items():
@@ -670,7 +670,7 @@ class ytdownload:
                                 self.video['url'] = await self._decipher_url(self.video['signatureCipher'] if self.video.get('signatureCipher') else self.video.get('url'), unciphered=True if self.video.get('url') else False)
                                 break
         elif not self.premerged and not self.manifest:
-            avaliable = "unmerged_unsig" if self.all_formats.get("unmerged_unsig") and self.needlogin else "unmerged_unsig" if not self.all_formats.get("unmerged_sig") else "unmerged_sig"
+            avaliable = "unmerged_unsig" if (self.all_formats.get("unmerged_unsig") and self.needlogin) else "unmerged_unsig" if not self.all_formats.get("unmerged_sig") else "unmerged_sig" if not all(map(lambda x: x.get('source') == 'web', self.all_formats['unmerged_sig'].values())) else 'unmerged_unsig'
             video_ids = []
             audio_ids = []
             for key, value in self.all_formats[avaliable].items():
@@ -1605,7 +1605,7 @@ class ytdownload:
             await f1.write(json.dumps(temp, indent=4))
         self.logger.info(f"{Fore.GREEN}successfully fetched video information{Fore.RESET}")
     async def _decipher_url(self, ciphered_url: str, unciphered: bool = False):
-
+        newurl = ciphered_url
         await self._get_decipher_functions()
         if not unciphered:
             secondfunction = self.functions.get('secondfunction')
@@ -1646,24 +1646,24 @@ class ytdownload:
                             logging.debug(f"request info: {json.dumps(self.request_to_dict(r.request_info))}")
                     if r.status not in [200, 206]:
                         self.logger.debug(f"url not successfully deciphered, \n  {newurl}\ncode {r.status}")
-        if  unciphered or ("&n=" in newurl):
-            if unciphered:
-                newurl = unquote(ciphered_url)
-            nparam = newurl.split("&n=")[1] if len(newurl.split("&n=")) > 1 else None
-            if not nparam:
-                return ciphered_url
-            nparam = nparam.split("&")[0]
-            thirdfunction = self.functions.get('thirdfunction')
-            thirdfunctionname = self.functions.get('thirdfunctionname')
-            decipher_js_script = f'{thirdfunction}\nconsole.log({thirdfunctionname}("{nparam}"))'
-            async with aiofiles.open("videoinfo/deciphersignature.js", "w") as f1:
-                await f1.write(decipher_js_script)
-            result = await asyncio.create_subprocess_exec('node',  'videoinfo/deciphersignature.js', stdout=asyncio.subprocess.PIPE)
-            stdout, _ = await result.communicate()
-            deciphered = stdout.decode('utf-8')
-            self.logger.debug(f"deciphered n param \n {nparam} -> {deciphered}")
-            newurl = newurl.replace(nparam, deciphered)
-            newurl = "".join(newurl).strip().replace('\n', '')
+        # if  unciphered or ("&n=" in newurl):
+        #     if unciphered:
+        #         newurl = unquote(ciphered_url)
+        #     nparam = newurl.split("&n=")[1] if len(newurl.split("&n=")) > 1 else None
+        #     if not nparam:
+        #         return ciphered_url
+        #     nparam = nparam.split("&")[0]
+        #     thirdfunction = self.functions.get('thirdfunction')
+        #     thirdfunctionname = self.functions.get('thirdfunctionname')
+        #     decipher_js_script = f'{thirdfunction}\nconsole.log({thirdfunctionname}("{nparam}"))'
+        #     async with aiofiles.open("videoinfo/deciphersignature.js", "w") as f1:
+        #         await f1.write(decipher_js_script)
+        #     result = await asyncio.create_subprocess_exec('node',  'videoinfo/deciphersignature.js', stdout=asyncio.subprocess.PIPE)
+        #     stdout, _ = await result.communicate()
+        #     deciphered = stdout.decode('utf-8')
+        #     self.logger.debug(f"deciphered n param \n {nparam} -> {deciphered}")
+        #     newurl = newurl.replace(nparam, deciphered)
+        #     newurl = "".join(newurl).strip().replace('\n', '')
         return newurl
 
     async def _get_decipher_functions(self):
