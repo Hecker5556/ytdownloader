@@ -479,6 +479,8 @@ class ytdownload:
                 for key, value in deepcopy(self.all_formats[avaliable]).items():
                     if value.get('contentLength') and int(value.get('contentLength'))/(1024*1024)>self.maxsize:
                         continue
+                    if not self._check_disable_web(value):
+                        continue
                     if self.codec and self.codec in value.get('mimeType'):
                         video_ids.append(key)
                     elif 'video' in value['mimeType'] and not self.codec and not self.audioonly:
@@ -674,6 +676,8 @@ class ytdownload:
             video_ids = []
             audio_ids = []
             for key, value in self.all_formats[avaliable].items():
+                if not self._check_disable_web(value):
+                    continue
                 if self.codec and self.codec in value.get('mimeType'):
                     video_ids.append(key)
                 elif 'video' in value.get('mimeType') and not self.codec and not self.audioonly:
