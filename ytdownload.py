@@ -820,8 +820,10 @@ class ytdownload:
         self.result_file = resultfile
         if self.start or self.end:
             tempfile = f"tempfile_{int(datetime.now().timestamp())}.{self.ext}"
-            process = await asyncio.subprocess.create_subprocess_exec("ffmpeg", *["-i", self.result_file, "-ss" if self.start else "", self.start if self.start else "", "-to" if self.end else "", self.end if self.end else "", "-c", "copy", tempfile], stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
-            self.logger.debug("subprocess command:\nffmpeg " + " ".join(["-i", self.result_file, "-ss" if self.start else "", self.start if self.start else "", "-to" if self.end else "", self.end if self.end else "", "-c", "copy", tempfile]))
+            cmd = ["-i", self.result_file, "-ss" if self.start else "", self.start if self.start else "", "-to" if self.end else "", self.end if self.end else "", "-c", "copy", tempfile]
+            cmd = [a for a in cmd if a]
+            process = await asyncio.subprocess.create_subprocess_exec("ffmpeg", *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+            self.logger.debug("subprocess command:\nffmpeg " + " ".join(cmd))
             stdout, stderr = await process.communicate()
             logging.debug(f"STDOUT: \n{stdout.decode() if stdout else None}\nSTDERR: \n{stderr.decode() if stderr else None}")
             os.remove(self.result_file)
