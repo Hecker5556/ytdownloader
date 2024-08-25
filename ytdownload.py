@@ -107,6 +107,7 @@ class ytdownload:
         self.expire = None
         self.disable_web = True # youtube's web response has been bugging, returning 403s, even on youtube it does it. on youtube after a few 403s it will fall back to some other method where it sends encrypted data to get the video itag it wants.
         self.tempfiles = []
+        self.table = None
         for key, value in kwargs.items():
             if value == None:
                 continue
@@ -308,7 +309,8 @@ class ytdownload:
                     try:
                         await self.get_video_info()
                         if self.nodownload:
-                            return await self._generate_table()
+                            self.table = await self._generate_table()
+                            return self.table
                         await self._pick_formats()
                         res = await self._download_fr()
                         break
@@ -330,6 +332,7 @@ class ytdownload:
                     self.logger.info(f"{Fore.RED}couldnt download {self.link}{Fore.RESET}")
                     if "no valid formats" in error:
                         raise self.no_valid_formats(f"No valid formats for video https://youtube.com/watch?v={self.video_id}")
+                    raise self.error
                 else:
                     self.error = None
                 return res
@@ -474,7 +477,7 @@ class ytdownload:
             video_ids = []
             audio_ids = []
             if not self.manifest and not self.premerged:
-                avaliable = "unmerged_unsig" if (self.all_formats.get("unmerged_unsig") and self.needlogin) else "unmerged_unsig" if not self.all_formats.get("unmerged_sig") else "unmerged_sig" if not all(map(lambda x: x.get('source') == 'web', self.all_formats['unmerged_sig'].values())) else 'unmerged_unsig'
+                avaliable = "unmerged_unsig" if (self.all_formats.get("unmerged_unsig") and self.needlogin) else "unmerged_unsig" if not self.all_formats.get("unmerged_sig") else "unmerged_sig" if not all(map(lambda x: x.get('source') == 'web' and self.disable_web, self.all_formats['unmerged_sig'].values())) else 'unmerged_unsig'
                 self.logger.debug(f"downloading {avaliable}")
                 for key, value in deepcopy(self.all_formats[avaliable]).items():
                     if value.get('contentLength') and int(value.get('contentLength'))/(1024*1024)>self.maxsize:
@@ -657,7 +660,7 @@ class ytdownload:
                 if not (self.video or self.audio or self.manifest_video):
                     raise self.no_valid_formats(f"Couldn't find any formats with itag {self.itag}")
                 if not self.onlyitag:
-                    avaliable = "unmerged_unsig" if (self.all_formats.get("unmerged_unsig") and self.needlogin) else "unmerged_unsig" if not self.all_formats.get("unmerged_sig") else "unmerged_sig" if not all(map(lambda x: x.get('source') == 'web', self.all_formats['unmerged_sig'].values())) else 'unmerged_unsig'
+                    avaliable = "unmerged_unsig" if (self.all_formats.get("unmerged_unsig") and self.needlogin) else "unmerged_unsig" if not self.all_formats.get("unmerged_sig") else "unmerged_sig" if not all(map(lambda x: x.get('source') == 'web' and self.disable_web, self.all_formats['unmerged_sig'].values())) else 'unmerged_unsig'
 
                     if self.video:
                         for key, value in self.all_formats[avaliable].items():
@@ -672,7 +675,7 @@ class ytdownload:
                                 self.video['url'] = await self._decipher_url(self.video['signatureCipher'] if self.video.get('signatureCipher') else self.video.get('url'), unciphered=True if self.video.get('url') else False)
                                 break
         elif not self.premerged and not self.manifest:
-            avaliable = "unmerged_unsig" if (self.all_formats.get("unmerged_unsig") and self.needlogin) else "unmerged_unsig" if not self.all_formats.get("unmerged_sig") else "unmerged_sig" if not all(map(lambda x: x.get('source') == 'web', self.all_formats['unmerged_sig'].values())) else 'unmerged_unsig'
+            avaliable = "unmerged_unsig" if (self.all_formats.get("unmerged_unsig") and self.needlogin) else "unmerged_unsig" if not self.all_formats.get("unmerged_sig") else "unmerged_sig" if not all(map(lambda x: x.get('source') == 'web' and self.disable_web, self.all_formats['unmerged_sig'].values())) else 'unmerged_unsig'
             video_ids = []
             audio_ids = []
             for key, value in self.all_formats[avaliable].items():
@@ -1340,6 +1343,8 @@ class ytdownload:
                     #     avaliable_itags.append(int(i['itag']))
                     for key, value in responsejson["videoDetails"].items():
                         self.other_video_info[key] = value
+        elif responsejson['playabilityStatus'].get('status') == "ERROR":
+            raise ValueError(f"Video Error from youtube: {responsejson['playabilityStatus'].get('reason')}")
         else:
             avaliable_itags = [int(value['itag']) for value in self.video_unmerged_info.values() if self._check_disable_web(value)]
             for index, i in enumerate(responsejson['streamingData']['adaptiveFormats']):
@@ -1827,7 +1832,7 @@ if __name__ == "__main__":
         finish=datetime.now()
         duration = finish-start
         print(f"it took {int(duration.total_seconds()//60):02}:{int(duration.total_seconds()%60):02}")
-        if not isinstance(result, prettytable.PrettyTable):
+        if not isinstance(the.table, prettytable.PrettyTable):
             print(json.dumps(result, indent=4))
         else:
-            print(result)
+            print(the.table)
