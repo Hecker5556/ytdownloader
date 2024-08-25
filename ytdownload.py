@@ -108,6 +108,7 @@ class ytdownload:
         self.disable_web = True # youtube's web response has been bugging, returning 403s, even on youtube it does it. on youtube after a few 403s it will fall back to some other method where it sends encrypted data to get the video itag it wants.
         self.tempfiles = []
         self.table = None
+        self.got_functions = None
         for key, value in kwargs.items():
             if value == None:
                 continue
@@ -1229,6 +1230,7 @@ class ytdownload:
         }
         self.needlogin = False
         self.using_env = False
+        source = 'web'
         if responsejson['playabilityStatus'].get('status') == 'LOGIN_REQUIRED':
             self.needlogin = True
             try:
@@ -1298,6 +1300,7 @@ class ytdownload:
                     responsejson = json.loads(response)
                 for key, value in responsejson["videoDetails"].items():
                     self.other_video_info[key] = value
+                source = 'IOS'
             except:
                 self.logger.info(f"{Fore.BLUE}LOGIN REQUIRED.{Fore.RESET} Will try to use TVHTML5_SIMPLY_EMBEDDED_PLAYER to grab info")
                 json_data = {
@@ -1343,37 +1346,42 @@ class ytdownload:
                     #     avaliable_itags.append(int(i['itag']))
                     for key, value in responsejson["videoDetails"].items():
                         self.other_video_info[key] = value
+                    source = 'TVHTML5_SIMPLY_EMBEDDED_PLAYER'
         elif responsejson['playabilityStatus'].get('status') == "ERROR":
             raise ValueError(f"Video Error from youtube: {responsejson['playabilityStatus'].get('reason')}")
         else:
             avaliable_itags = [int(value['itag']) for value in self.video_unmerged_info.values() if self._check_disable_web(value)]
             for index, i in enumerate(responsejson['streamingData']['adaptiveFormats']):
+                if source == 'web' and self.disable_web:
+                    break
                 if int(i['itag']) in avaliable_itags:
                     continue
-                i['source'] = 'web'
+                i['source'] = source
                 self.video_unmerged_info[str(index)] = i
                 avaliable_itags.append(int(i['itag']))
             avaliable_itags = [int(value['itag']) for value in self.video_merged_info.values() if self._check_disable_web(value)]
             for index, i in enumerate(responsejson['streamingData']['formats']):
                 if int(i['itag']) in avaliable_itags:
                     continue
-                i['source'] = 'web'
+                if source == 'web' and self.disable_web:
+                    break
+                i['source'] = source
                 self.video_merged_info[str(index)] = i
                 avaliable_itags.append(int(i['itag']))
             for key, value in responsejson["videoDetails"].items():
                 self.other_video_info[key] = value
             if self.video_unmerged_info.get("0"):
                 if self.video_unmerged_info["0"].get("signatureCipher"):
-                    self.logger.debug("found unmerged signatured formats from web response")
+                    self.logger.debug(f"found unmerged signatured formats from {source} response")
                     self.all_formats['unmerged_sig'] = self.video_unmerged_info
                     self.sortdictbysize("unmerged_unsig")
                 elif self.video_unmerged_info["0"].get("url"):
-                    self.logger.debug("found unmerged unsignatured formats from web response")
+                    self.logger.debug(f"found unmerged unsignatured formats from {source} response")
                     self.all_formats['unmerged_unsig'] = self.video_unmerged_info
                     self.sortdictbysize("unmerged_unsig")
             if self.video_merged_info.get("0"):
                 if self.video_merged_info["0"].get("signatureCipher"):
-                    self.logger.debug("found merged signatured formats from web response")
+                    self.logger.debug(f"found merged signatured formats from {source} response")
                     if self.premerged:
                         for key, value in deepcopy(self.video_merged_info).items():
                             if value.get('content-length'):
