@@ -747,7 +747,7 @@ class ytdownload:
                 logging.debug(f"Downloading video itag {self.video.get('itag')}")
                 while True:
                     await self._download(self.video['url'], filename_vid, None if not self.video.get('contentLength') else int(self.audio['contentLength']) if self.audio.get('contentLength') else None)
-                    self.result_file = filename
+                    self.result_file = filename_vid
                     self.ext = ext_vid
                     if os.path.exists(self.result_file):
                         break
