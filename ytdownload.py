@@ -29,7 +29,7 @@ class ytdownload:
             manifest (bool, optional): Extract manifest info, download manifest chunks, and merge into a video.
             Default is False.
             
-            maxsize (int, optional): Maximum size of output in MB. Default is None.
+            maxsize (float, optional): Maximum size of output in MB. Default is None.
             
             premerged (bool, optional): Whether to download premerged videos. Default is False.
             
@@ -130,7 +130,7 @@ class ytdownload:
                     else:
                         print(f"{key}={value} is not a valid argument")
                 case "maxsize":
-                    if isinstance(value, int):
+                    if isinstance(value, int) or isinstance(value, float):
                         self.maxsize = value
                     else:
                         print(f"{key}={value} is not a valid argument")
@@ -333,6 +333,12 @@ class ytdownload:
                     self.logger.info(f"{Fore.RED}couldnt download {self.link}{Fore.RESET}")
                     if "no valid formats" in error:
                         raise self.no_valid_formats(f"No valid formats for video https://youtube.com/watch?v={self.video_id}")
+                    if hasattr(self, "tempfiles") and self.tempfiles:
+                        for file in self.tempfiles:
+                            try:
+                                os.remove(file)
+                            except:
+                                pass
                     raise self.error
                 else:
                     self.error = None
