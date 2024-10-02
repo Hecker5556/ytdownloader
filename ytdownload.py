@@ -391,6 +391,7 @@ class ytdownload:
             elif result.get('playlistRenderer'):
                 videos[result['playlistRenderer']['title']['simpleText']] = f"https://youtube.com/playlist?list={result['playlistRenderer']['playlistId']}"
         self.videos = videos
+        return videos
     async def get_playlist(self, link: str = None):
         if link:
             if not "playlist?" in link:
@@ -845,6 +846,7 @@ class ytdownload:
             stdout, stderr = await process.communicate()
             logging.debug(f"STDOUT: \n{stdout.decode() if stdout else None}\nSTDERR: \n{stderr.decode() if stderr else None}")
             os.remove(self.result_file)
+            self.result_file = os.path.splitext(self.result_file)[0] + '.mp3'
             os.rename(tempfile, self.result_file)
         process = await asyncio.subprocess.create_subprocess_exec("ffprobe", *['-i', self.result_file, '-show_streams', '-print_format', 'json', '-v', 'quiet', '-show_format'], stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
         self.logger.debug("subprocess command:\nffprobe " + " ".join(['-i', self.result_file, '-show_streams', '-print_format', 'json', '-v', 'quiet', '-show_format']))
