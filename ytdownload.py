@@ -293,7 +293,7 @@ class ytdownload:
                             self.logger.info(f"{Fore.RED}errored on {self.link}, no valid formats matching settings{Fore.RESET}")
                         except Exception as e:
                             self.logger.debug(traceback.format_exc())
-                            self.logger.info(f"{Fore.RED}errored on {self.link}, use verbose to see error{Fore.RESET}")
+                            self.logger.info(f"{Fore.RED}errored on {self.link}, error: {e}, full error in verbose mode{Fore.RESET}")
                         self.logger.info("trying again...")
                     if not res:
                         self.logger.info(f"couldnt download {link}")
@@ -323,9 +323,10 @@ class ytdownload:
                         self.logger.info(f"{Fore.RED}errored on {self.link}, no valid formats matching settings{Fore.RESET}")
                         error = "no valid formats"
                         self.error = e
+                        break
                     except Exception as e:
                         self.logger.debug(traceback.format_exc())
-                        self.logger.info(f"errored on {self.link}, use verbose to see error")
+                        self.logger.info(f"errored on {self.link}, error: {e}, full error on verbose mode")
                         error = str(e)
                         self.error = e
                     self.logger.info("trying again...")
@@ -816,7 +817,7 @@ class ytdownload:
             await self._manifest_download()
         if self.title and not os.path.exists(self.title):
             os.mkdir(self.title)
-        clear = lambda x: "".join([i for i in x if i not in "\\/:*?<>|()"])
+        clear = lambda x: "".join([i for i in x if i not in "\\/:*?<>|()\""])
         give_file = lambda folder, title, date, ext: f"{clear(folder)}/"+clear(title)+date+f".{ext}" if folder else clear(title)+date+f".{ext}"
         resultfile = give_file(self.title, self.all_formats['misc'].get('title') if not self.filename else self.filename, "", self.ext)
         try:
@@ -901,8 +902,10 @@ class ytdownload:
             temp_file_a = f"temp_audio_{int(datetime.now().timestamp())}.ts"
             self.progress = tqdm(total=float(self.manifest_video['FILESIZE'])*1024*1024, unit='iB' ,unit_scale=True)
             await self._manifest_worker(video_urls, temp_file_v)
+            self.tempfiles.append(temp_file_v)
             logging.debug("finished downloading video manifest")
             await self._manifest_worker(audio_urls, temp_file_a)
+            self.tempfiles.append(temp_file_a)
             logging.debug("finished download audio manifest")
             self.progress.close()
             compatible = True if 'mp4a' and 'avc1' in self.manifest_video['CODECS'] else False
@@ -921,24 +924,33 @@ class ytdownload:
             temp_file_a = f"temp_audio_{int(datetime.now().timestamp())}.{self.ext}"
             self.progress = tqdm(total=float(self.manifest_video['FILESIZE'])*1024*1024, unit='iB' ,unit_scale=True)
             await self._manifest_worker(audio_urls, temp_file_a)
+            self.tempfiles.append(temp_file_a)
             self.progress.close()
-            self.result_file = temp_file_a
+            os.rename(temp_file_a, self.result_file)
             audio_bitrate = await asyncio.subprocess.create_subprocess_exec("ffprobe", *['-v', 'quiet', '-print_format', 'json', '-show_format', '-show_streams', '-i', temp_file_a], stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
             self.logger.debug("subprocess command:\nffprobe " + " ".join(['-v', 'quiet', '-print_format', 'json', '-show_format', '-show_streams', '-i', temp_file_a]))
             stdout, stderr = await audio_bitrate.communicate()
             audio_bitrate = json.loads(stdout.decode()).get('streams')[0].get('bit_rate')
             self.manifest_video['audio_bitrate'] = audio_bitrate
-        [os.remove(x) if x else None for x in [temp_file_a, temp_file_v]]
+        for x in [temp_file_a, temp_file_v]:
+            try:
+                os.remove(x)
+            except:
+                pass
     async def _manifest_worker(self, links: list[str], filename: str):
         async with aiofiles.open(filename, 'wb') as f1:
             headers = {
                 'range': 'bytes=0-'
             }
+            bad_links_count = 0
             for link in links:
                 async with self.session.get(URL(link, encoded=True), proxy=self.proxypreset, headers=headers) as r:
                     logging.debug(f"request info: {json.dumps(self.request_to_dict(r.request_info))}")
                     if r.status not in [200, 206]:
                         logging.info(f"bad status on manifest download: {r.status}")
+                        bad_links_count += 1
+                        if bad_links_count == 10:
+                            raise self.download_error(f"Issue with downloading form manifest: Status {r.status}. Try again.")
                     while True:
                         chunk = await r.content.read(1024)
                         if not chunk:
@@ -1359,14 +1371,17 @@ class ytdownload:
             raise ValueError(f"Video Error from youtube: {responsejson['playabilityStatus'].get('reason')}")
         else:
             avaliable_itags = [int(value['itag']) for value in self.video_unmerged_info.values() if self._check_disable_web(value)]
-            for index, i in enumerate(responsejson['streamingData']['adaptiveFormats']):
-                if source == 'web' and self.disable_web:
-                    break
-                if int(i['itag']) in avaliable_itags:
-                    continue
-                i['source'] = source
-                self.video_unmerged_info[str(index)] = i
-                avaliable_itags.append(int(i['itag']))
+            try:
+                for index, i in enumerate(responsejson['streamingData']['adaptiveFormats']):
+                    if source == 'web' and self.disable_web:
+                        break
+                    if int(i['itag']) in avaliable_itags:
+                        continue
+                    i['source'] = source
+                    self.video_unmerged_info[str(index)] = i
+                    avaliable_itags.append(int(i['itag']))
+            except KeyError:
+                raise self.download_error(f"Failed at getting info: {responsejson['playabilityStatus']}")
             avaliable_itags = [int(value['itag']) for value in self.video_merged_info.values() if self._check_disable_web(value)]
             for index, i in enumerate(responsejson['streamingData']['formats']):
                 if int(i['itag']) in avaliable_itags:
