@@ -820,8 +820,8 @@ class ytdownload:
         clear = lambda x: "".join([i for i in x if i not in "\\/:*?<>|()\""])
         give_file = lambda folder, title, date, ext: f"{clear(folder)}/"+clear(title)+date+f".{ext}" if folder else clear(title)+date+f".{ext}"
         title = self.filename if self.filename else self.all_formats['misc'].get('title')
-        if len(title.encode()) > 252:
-            title = title.encode()[:252].decode()
+        if len(title.encode()) > 250:
+            title = title.encode()[:250].decode()
         resultfile = give_file(self.title, title, "", self.ext)
         try:
             os.rename(self.result_file, resultfile)
