@@ -1323,6 +1323,8 @@ class ytdownload:
                     logging.debug(f"request info: {json.dumps(self.request_to_dict(r.request_info))}")
                     response = await r.text("utf-8")
                     responsejson = json.loads(response)
+                self.logger.debug(f"Playability Status: {responsejson['playabilityStatus'].get('status')}")
+                self.logger.debug(f"Other playability status information:\n{responsejson['playabilityStatus']}")
                 for key, value in responsejson["videoDetails"].items():
                     self.other_video_info[key] = value
                 source = 'IOS'
@@ -1355,6 +1357,8 @@ class ytdownload:
                     logging.debug(f"request info: {json.dumps(self.request_to_dict(response.request_info))}")
                     response = await response.text("utf-8")
                     responsejson = json.loads(response)
+                    self.logger.debug(f"Playability Status: {responsejson['playabilityStatus'].get('status')}")
+                    self.logger.debug(f"Other playability status information:\n{responsejson['playabilityStatus']}")
                     # avaliable_itags = list(map(lambda x: int(x[1].get('itag')), self.video_unmerged_info.items()))
                     # for index, i in enumerate(responsejson['streamingData']['adaptiveFormats']):
                     #     if int(i['itag']) in avaliable_itags:
