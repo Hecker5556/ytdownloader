@@ -1254,6 +1254,8 @@ class ytdownload:
         self.needlogin = False
         self.using_env = False
         source = 'web'
+        self.logger.debug(f"Playability Status: {responsejson['playabilityStatus'].get('status')}")
+        self.logger.debug(f"Other playability status information:\n{responsejson['playabilityStatus']}")
         if responsejson['playabilityStatus'].get('status') == 'LOGIN_REQUIRED':
             self.needlogin = True
             try:
