@@ -1359,6 +1359,8 @@ class ytdownload:
                     responsejson = json.loads(response)
                     self.logger.debug(f"Playability Status: {responsejson['playabilityStatus'].get('status')}")
                     self.logger.debug(f"Other playability status information:\n{responsejson['playabilityStatus']}")
+                    if responsejson['playabilityStatus'].get("status") == "UNPLAYABLE":
+                        raise self.download_error(f"Errored in fetching info: {responsejson['playabilityStatus'].get('reason')}, maybe youtube thinks youre a bot.")
                     # avaliable_itags = list(map(lambda x: int(x[1].get('itag')), self.video_unmerged_info.items()))
                     # for index, i in enumerate(responsejson['streamingData']['adaptiveFormats']):
                     #     if int(i['itag']) in avaliable_itags:
