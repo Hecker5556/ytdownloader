@@ -1,8 +1,8 @@
 import asyncio, aiohttp, aiofiles, json, re, prettytable, logging, os, traceback
 from aiohttp_socks import ProxyConnector
 from tqdm import tqdm
-from datetime import datetime
-from urllib.parse import unquote
+from datetime import datetime, timedelta
+from urllib.parse import unquote, quote
 from copy import deepcopy
 from yarl import URL
 from colorama import Fore
@@ -105,7 +105,7 @@ class ytdownload:
         self.session = None
         self.title = None
         self.expire = None
-        self.disable_web = True # youtube's web response has been bugging, returning 403s, even on youtube it does it. on youtube after a few 403s it will fall back to some other method where it sends encrypted data to get the video itag it wants.
+        self.disable_web = False # youtube's web response has been bugging, returning 403s, even on youtube it does it. on youtube after a few 403s it will fall back to some other method where it sends encrypted data to get the video itag it wants.
         self.tempfiles = []
         self.table = None
         self.got_functions = None
@@ -485,10 +485,11 @@ class ytdownload:
         if self.maxsize and not self.itag:
             video_ids = []
             audio_ids = []
+            await self._get_decipher_functions()
             if not self.manifest and not self.premerged:
-                avaliable = "unmerged_unsig" if (self.all_formats.get("unmerged_unsig") and self.needlogin) else "unmerged_unsig" if not self.all_formats.get("unmerged_sig") else "unmerged_sig" if not all(map(lambda x: x.get('source') == 'web' and self.disable_web, self.all_formats['unmerged_sig'].values())) else 'unmerged_unsig'
-                self.logger.debug(f"downloading {avaliable}")
-                for key, value in deepcopy(self.all_formats[avaliable]).items():
+                self.avaliable = "unmerged_unsig" if self._decipher == False or (self.all_formats.get("unmerged_unsig") and self.needlogin) else "unmerged_unsig" if not self.all_formats.get("unmerged_sig") else "unmerged_sig" if not all(map(lambda x: x.get('source') == 'web' and self.disable_web, self.all_formats['unmerged_sig'].values())) else 'unmerged_unsig'
+                self.logger.debug(f"downloading {self.avaliable}")
+                for key, value in deepcopy(self.all_formats[self.avaliable]).items():
                     if value.get('contentLength') and int(value.get('contentLength'))/(1024*1024)>self.maxsize:
                         continue
                     if not self._check_disable_web(value):
@@ -506,11 +507,11 @@ class ytdownload:
                 if self.priority == "video" and not self.audioonly:
                     for video in video_ids:
                         for audio in audio_ids:
-                            if (int(self.all_formats[avaliable][video].get('contentLength'))+int(self.all_formats[avaliable][audio].get('contentLength')))/(1024*1024) > self.maxsize:
+                            if (int(self.all_formats[self.avaliable][video].get('contentLength'))+int(self.all_formats[self.avaliable][audio].get('contentLength')))/(1024*1024) > self.maxsize:
                                 self.logger.debug(f"video {video} and audio {audio} too large")
                                 continue
-                            self.video = self.all_formats[avaliable][video]
-                            audio = self.all_formats[avaliable][audio]
+                            self.video = self.all_formats[self.avaliable][video]
+                            audio = self.all_formats[self.avaliable][audio]
                             if audio['mimeType'].split(";")[0].split('/')[1] in self.video['mimeType']:
                                 self.audio = audio
                                 break
@@ -522,11 +523,11 @@ class ytdownload:
                         self.audio = None
                         for video in video_ids:
                             for audio in audio_ids:
-                                if (int(self.all_formats[avaliable][video].get('contentLength'))+int(self.all_formats[avaliable][audio].get('contentLength')))/(1024*1024) > self.maxsize:
+                                if (int(self.all_formats[self.avaliable][video].get('contentLength'))+int(self.all_formats[self.avaliable][audio].get('contentLength')))/(1024*1024) > self.maxsize:
                                     self.logger.debug(f"video {video} and audio {audio} too large")
                                     continue
-                                self.video = self.all_formats[avaliable][video]
-                                self.audio = self.all_formats[avaliable][audio]
+                                self.video = self.all_formats[self.avaliable][video]
+                                self.audio = self.all_formats[self.avaliable][audio]
                             if self.video and self.audio:
                                 break
                         if not (self.video and self.audio):
@@ -534,11 +535,11 @@ class ytdownload:
                 elif self.priority == "audio" and not self.audioonly:
                     for audio in audio_ids:
                         for video in video_ids:
-                            if (int(self.all_formats[avaliable][video].get('contentLength'))+int(self.all_formats[avaliable][audio].get('contentLength')))/(1024*1024) > self.maxsize:
+                            if (int(self.all_formats[self.avaliable][video].get('contentLength'))+int(self.all_formats[self.avaliable][audio].get('contentLength')))/(1024*1024) > self.maxsize:
                                 self.logger.debug(f"video {video} and audio {audio} too large")
                                 continue
-                            self.video = self.all_formats[avaliable][video]
-                            audio = self.all_formats[avaliable][audio]
+                            self.video = self.all_formats[self.avaliable][video]
+                            audio = self.all_formats[self.avaliable][audio]
                             if audio['mimeType'].split(";")[0].split('/')[1] in self.video['mimeType']:
                                 self.audio = audio
                                 break
@@ -550,22 +551,22 @@ class ytdownload:
                         self.audio = None
                         for audio in audio_ids:
                             for video in video_ids:
-                                if (int(self.all_formats[avaliable][video].get('contentLength'))+int(self.all_formats[avaliable][audio].get('contentLength')))/(1024*1024) > self.maxsize:
+                                if (int(self.all_formats[self.avaliable][video].get('contentLength'))+int(self.all_formats[self.avaliable][audio].get('contentLength')))/(1024*1024) > self.maxsize:
                                     self.logger.debug(f"video {video} and audio {audio} too large")
                                     continue
-                                self.video = self.all_formats[avaliable][video]
-                                self.audio = self.all_formats[avaliable][audio]
+                                self.video = self.all_formats[self.avaliable][video]
+                                self.audio = self.all_formats[self.avaliable][audio]
                             if self.video and self.audio:
                                 break
                         if not (self.video and self.audio):
                             raise self.no_valid_formats(f"No valid formats under the max size {self.maxsize}")
                 elif not self.priority and not self.audioonly:
                     for (video, audio) in zip(video_ids, audio_ids):
-                        if (int(self.all_formats[avaliable][video].get('contentLength'))+int(self.all_formats[avaliable][audio].get('contentLength')))/(1024*1024) > self.maxsize:
+                        if (int(self.all_formats[self.avaliable][video].get('contentLength'))+int(self.all_formats[self.avaliable][audio].get('contentLength')))/(1024*1024) > self.maxsize:
                             self.logger.debug(f"video {video} and audio {audio} too large")
                             continue
                         self.video = video
-                        audio = self.all_formats[avaliable][audio]
+                        audio = self.all_formats[self.avaliable][audio]
                         if audio['mimeType'].split(";")[0].split('/')[1] in self.video['mimeType']:
                             self.audio = audio
                             break
@@ -575,7 +576,7 @@ class ytdownload:
                         self.video = None
                         self.audio = None
                         for (video, audio) in zip(video_ids, audio_ids):
-                            if (int(self.all_formats[avaliable][video].get('contentLength'))+int(self.all_formats[avaliable][audio].get('contentLength')))/(1024*1024) > self.maxsize:
+                            if (int(self.all_formats[self.avaliable][video].get('contentLength'))+int(self.all_formats[self.avaliable][audio].get('contentLength')))/(1024*1024) > self.maxsize:
                                 self.logger.debug(f"video {video} and audio {audio} too large")
                                 continue
                             self.video = video
@@ -584,10 +585,10 @@ class ytdownload:
                             raise self.no_valid_formats(f"No valid formats under the max size {self.maxsize}")
                 else:
                     for audio in audio_ids:
-                        if (int(self.all_formats[avaliable][audio].get('contentLength')))/(1024*1024) > self.maxsize:
+                        if (int(self.all_formats[self.avaliable][audio].get('contentLength')))/(1024*1024) > self.maxsize:
                             self.logger.debug(f"{audio} is too big")
                             continue
-                        self.audio = self.all_formats[avaliable][audio]
+                        self.audio = self.all_formats[self.avaliable][audio]
                         break
                     if not self.audio:
                         raise self.no_valid_formats(f"No valid formats under the max size {self.maxsize}")
@@ -596,17 +597,17 @@ class ytdownload:
                 self.audio['url'] = await self._decipher_url(self.audio.get('signatureCipher') if self.audio.get('signatureCipher') else self.audio['url'], unciphered=False if self.audio.get('signatureCipher') else True)
             elif self.premerged and not self.manifest:
                 premerged_video = []
-                avaliable = "merged_unsig" if self.all_formats.get("merged_unsig") and self.needlogin else "merged_unsig" if not self.all_formats.get("merged_sig") else "merged_sig"
-                for key, value in self.all_formats[avaliable].items():
+                self.avaliable = "merged_unsig" if self._decipher == False or self.all_formats.get("merged_unsig") and self.needlogin else "merged_unsig" if not self.all_formats.get("merged_sig") else "merged_sig"
+                for key, value in self.all_formats[self.avaliable].items():
                     if self.codec and self.codec in value.get('mimeType'):
                         premerged_video.append(key)
                         continue
                     elif not self.codec:
                         premerged_video.append(key)
                 for video in premerged_video:
-                    if int(self.all_formats[avaliable][video].get('contentLength'))/(1024*1024) > self.maxsize:
+                    if int(self.all_formats[self.avaliable][video].get('contentLength'))/(1024*1024) > self.maxsize:
                         continue
-                    self.video = self.all_formats[avaliable][video]
+                    self.video = self.all_formats[self.avaliable][video]
                     break
                 if not self.video:
                     raise self.no_valid_formats(f"No valid formats under the max size {self.maxsize}")
@@ -626,8 +627,8 @@ class ytdownload:
                     raise self.no_valid_formats(f"No valid formats under the max size {self.maxsize}")
         elif self.itag:
             if self.itag in [17, 18, 22]:    
-                avaliable = "merged_unsig" if self.all_formats.get("merged_unsig") and self.needlogin else "merged_unsig" if not self.all_formats.get("merged_sig") else "merged_sig"
-                for key, value in self.all_formats[avaliable].items():
+                self.avaliable = "merged_unsig" if self._decipher == False or self.all_formats.get("merged_unsig") and self.needlogin else "merged_unsig" if not self.all_formats.get("merged_sig") else "merged_sig"
+                for key, value in self.all_formats[self.avaliable].items():
                     if int(value.get('itag')) == int(self.itag):
                         self.video = value
                         break
@@ -669,25 +670,26 @@ class ytdownload:
                 if not (self.video or self.audio or self.manifest_video):
                     raise self.no_valid_formats(f"Couldn't find any formats with itag {self.itag}")
                 if not self.onlyitag:
-                    avaliable = "unmerged_unsig" if (self.all_formats.get("unmerged_unsig") and self.needlogin) else "unmerged_unsig" if not self.all_formats.get("unmerged_sig") else "unmerged_sig" if not all(map(lambda x: x.get('source') == 'web' and self.disable_web, self.all_formats['unmerged_sig'].values())) else 'unmerged_unsig'
+                    self.avaliable = "unmerged_unsig" if self._decipher == False or (self.all_formats.get("unmerged_unsig") and self.needlogin) else "unmerged_unsig" if not self.all_formats.get("unmerged_sig") else "unmerged_sig" if not all(map(lambda x: x.get('source') == 'web' and self.disable_web, self.all_formats['unmerged_sig'].values())) else 'unmerged_unsig'
 
                     if self.video:
-                        for key, value in self.all_formats[avaliable].items():
+                        for key, value in self.all_formats[self.avaliable].items():
                             if 'audio' in value['mimeType'] and self.video['mimeType'].split(";")[0].split('/')[1] in value['mimeType']:
                                 self.audio = value
                                 self.audio['url'] = await self._decipher_url(self.audio['signatureCipher'] if self.audio.get('signatureCipher') else self.audio.get('url'), unciphered=True if self.audio.get('url') else False)
                                 break
                     elif self.audio:
-                        for key, value in self.all_formats[avaliable].items():
+                        for key, value in self.all_formats[self.avaliable].items():
                             if 'video' in value['mimeType'] and self.audio['mimeType'].split(";")[0].split('/')[1] in value['mimeType']:
                                 self.video = value
                                 self.video['url'] = await self._decipher_url(self.video['signatureCipher'] if self.video.get('signatureCipher') else self.video.get('url'), unciphered=True if self.video.get('url') else False)
                                 break
         elif not self.premerged and not self.manifest:
-            avaliable = "unmerged_unsig" if (self.all_formats.get("unmerged_unsig") and self.needlogin) else "unmerged_unsig" if not self.all_formats.get("unmerged_sig") else "unmerged_sig" if not all(map(lambda x: x.get('source') == 'web' and self.disable_web, self.all_formats['unmerged_sig'].values())) else 'unmerged_unsig'
+            await self._get_decipher_functions()
+            self.avaliable = "unmerged_unsig" if self._decipher == False or (self.all_formats.get("unmerged_unsig") and self.needlogin) else "unmerged_unsig" if not self.all_formats.get("unmerged_sig") else "unmerged_sig" if not all(map(lambda x: x.get('source') == 'web' and self.disable_web, self.all_formats['unmerged_sig'].values())) else 'unmerged_unsig'
             video_ids = []
             audio_ids = []
-            for key, value in self.all_formats[avaliable].items():
+            for key, value in self.all_formats[self.avaliable].items():
                 if not self._check_disable_web(value):
                     continue
                 if self.codec and self.codec in value.get('mimeType'):
@@ -703,21 +705,22 @@ class ytdownload:
             if not self.audioonly:
                 for i in video_ids:
                     for k in audio_ids:
-                        if self.all_formats[avaliable][i]['mimeType'].split(";")[0].split('/')[1] in self.all_formats[avaliable][k]['mimeType'].split(";")[0].split('/')[1]:
-                            self.video = self.all_formats[avaliable][i]
+                        if self.all_formats[self.avaliable][i]['mimeType'].split(";")[0].split('/')[1] in self.all_formats[self.avaliable][k]['mimeType'].split(";")[0].split('/')[1]:
+                            self.video = self.all_formats[self.avaliable][i]
                             self.video['url'] = await self._decipher_url(self.video['signatureCipher'] if self.video.get('signatureCipher') else self.video.get('url'), unciphered=True if self.video.get('url') else False)
-                            self.audio =self.all_formats[avaliable][k]
+                            self.audio =self.all_formats[self.avaliable][k]
                             self.audio['url'] = await self._decipher_url(self.audio['signatureCipher'] if self.audio.get('signatureCipher') else self.audio.get('url'), unciphered=True if self.audio.get('url') else False)
                             
                             break
                     if (self.video and self.audio):
                         break
             else:
-                self.audio = self.all_formats[avaliable][audio_ids[0]]
+                self.audio = self.all_formats[self.avaliable][audio_ids[0]]
                 self.audio['url'] = await self._decipher_url(self.audio['signatureCipher'] if self.audio.get('signatureCipher') else self.audio.get('url'), unciphered=True if self.audio.get('url') else False)
         elif self.premerged and not self.manifest:
-             avaliable = "merged_unsig" if self.all_formats.get("merged_unsig") and self.needlogin else "merged_unsig" if not self.all_formats.get("merged_sig") else "merged_sig"
-             for key, value in self.all_formats[avaliable].items():
+             await self._get_decipher_functions()
+             self.avaliable = "merged_unsig" if self._decipher == False or self.all_formats.get("merged_unsig") and self.needlogin else "merged_unsig" if not self.all_formats.get("merged_sig") else "merged_sig"
+             for key, value in self.all_formats[self.avaliable].items():
                  self.video = value
                  break
         elif self.manifest:
@@ -1187,6 +1190,113 @@ class ytdownload:
         if self.disable_web:
             return value['source'].lower() != 'web' and value['source'].upper() != 'TVHTML5_SIMPLY_EMBEDDED_PLAYER'
         return True
+    async def _rotate_cookies(self):
+        import env
+        cookies = {
+            'PREF': 'f6=40000000&f7=4100&tz=Europe.Warsaw&f4=4000000&f5=30000&gl=PL',
+        }
+        special = None
+        if os.path.exists("cookie_cache.json"):
+            with open("cookie_cache.json", "r") as f1:
+                cookie_cache = json.load(f1)
+                if datetime.now() < datetime.fromisoformat(cookie_cache.get("expiry")):
+                    special = cookie_cache['special']
+        
+        headers = {
+            'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+            'accept-language': 'en-US,en;q=0.9',
+            'Cookie': f"SID={env.SID};HSID={env.HSID};SSID={env.SSID};APISID={env.APISID};SAPISID={env.SAPISID};__Secure-1PSIDTS={env.PSIDTS}",
+            'priority': 'u=0, i',
+            'referer': 'https://www.youtube.com/',
+            'sec-ch-ua': '"Brave";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
+            'sec-ch-ua-arch': '"x86"',
+            'sec-ch-ua-bitness': '"64"',
+            'sec-ch-ua-full-version-list': '"Brave";v="131.0.0.0", "Chromium";v="131.0.0.0", "Not_A Brand";v="24.0.0.0"',
+            'sec-ch-ua-mobile': '?0',
+            'sec-ch-ua-model': '""',
+            'sec-ch-ua-platform': '"Windows"',
+            'sec-ch-ua-platform-version': '"10.0.0"',
+            'sec-ch-ua-wow64': '?0',
+            'sec-fetch-dest': 'iframe',
+            'sec-fetch-mode': 'navigate',
+            'sec-fetch-site': 'same-site',
+            'sec-gpc': '1',
+            'upgrade-insecure-requests': '1',
+            'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+        }
+        if not special:
+            async with self.session.get('https://accounts.youtube.com/RotateCookiesPage?origin=https://www.youtube.com&yt_pid=1', headers=headers, cookies=cookies) as r:
+                response = await r.text("utf-8")
+                special = re.search(r"init\(\'([\d\-]+)\',", response)
+                if not special:
+                    raise ConnectionError(f"Please provide a new __Secure-1PSIDTS cookie")
+                with open("cookie_cache.json", "w") as f1:
+                    json.dump({"special": special.group(1), "expiry": (datetime.now()+timedelta(days=1)).isoformat()}, f1)
+                special = special.group(1)
+
+        self.logheaders = {
+            'accept': '*/*',
+            'accept-language': 'en-US,en;q=0.5',
+            'content-type': 'application/json',
+            'Cookie': f"SID={env.SID};HSID={env.HSID};SSID={env.SSID};APISID={env.APISID};SAPISID={env.SAPISID};__Secure-1PSIDTS={env.PSIDTS}",
+            'origin': 'https://accounts.youtube.com',
+            'priority': 'u=1, i',
+            'referer': 'https://accounts.youtube.com/RotateCookiesPage?origin=https://www.youtube.com&yt_pid=1',
+            'sec-ch-ua': '"Brave";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
+            'sec-ch-ua-arch': '"x86"',
+            'sec-ch-ua-bitness': '"64"',
+            'sec-ch-ua-full-version-list': '"Brave";v="131.0.0.0", "Chromium";v="131.0.0.0", "Not_A Brand";v="24.0.0.0"',
+            'sec-ch-ua-mobile': '?0',
+            'sec-ch-ua-model': '""',
+            'sec-ch-ua-platform': '"Windows"',
+            'sec-ch-ua-platform-version': '"10.0.0"',
+            'sec-ch-ua-wow64': '?0',
+            'sec-fetch-dest': 'empty',
+            'sec-fetch-mode': 'same-origin',
+            'sec-fetch-site': 'same-origin',
+            'sec-gpc': '1',
+            'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+        }
+        json_data = [
+            None,
+            special,
+            1,
+        ]
+        async with self.session.post("https://accounts.youtube.com/RotateCookies", headers=self.logheaders, json=json_data, proxy=self.proxypreset) as r:
+            psidts = r.headers.get("Set-Cookie").split("=")[1].split(";")[0] if r.headers.get("Set-Cookie") else None
+            with open("env.py", "r") as f1:
+                env_f = f1.read()
+            if psidts and r.status == 200:
+                env_f = env_f.replace(env.PSIDTS, psidts)
+                with open("env.py", "w") as f1:
+                    f1.write(env_f)
+                self.logger.debug(f"Refreshed cookie!")
+                env.PSIDTS = psidts
+                self.logheaders = {
+                    'accept': '*/*',
+                    'accept-language': 'en-US,en;q=0.5',
+                    'content-type': 'application/json',
+                    'Cookie': f"SID={env.SID};HSID={env.HSID};SSID={env.SSID};APISID={env.APISID};SAPISID={env.SAPISID};__Secure-1PSIDTS={env.PSIDTS}",
+                    'origin': 'https://accounts.youtube.com',
+                    'priority': 'u=1, i',
+                    'referer': 'https://accounts.youtube.com/RotateCookiesPage?origin=https://www.youtube.com&yt_pid=1',
+                    'sec-ch-ua': '"Brave";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
+                    'sec-ch-ua-arch': '"x86"',
+                    'sec-ch-ua-bitness': '"64"',
+                    'sec-ch-ua-full-version-list': '"Brave";v="131.0.0.0", "Chromium";v="131.0.0.0", "Not_A Brand";v="24.0.0.0"',
+                    'sec-ch-ua-mobile': '?0',
+                    'sec-ch-ua-model': '""',
+                    'sec-ch-ua-platform': '"Windows"',
+                    'sec-ch-ua-platform-version': '"10.0.0"',
+                    'sec-ch-ua-wow64': '?0',
+                    'sec-fetch-dest': 'empty',
+                    'sec-fetch-mode': 'same-origin',
+                    'sec-fetch-site': 'same-origin',
+                    'sec-gpc': '1',
+                    'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+                }
+            else:
+                self.logger.debug("didnt refresh cookie")
     async def _get_video_info(self):
         cookies = {
         "PREF": "f4=4000000&f6=40000000&tz=Europe.Warsaw&f5=30000&f7=100",
@@ -1258,126 +1368,286 @@ class ytdownload:
         self.logger.debug(f"Other playability status information:\n{responsejson['playabilityStatus']}")
         if responsejson['playabilityStatus'].get('status') == 'LOGIN_REQUIRED':
             self.needlogin = True
-            try:
-                import env
-                logging.info(f"{Fore.BLUE}LOGIN REQUIRED,{Fore.RESET} will try use credentials")
-                self.using_env = True
-                self.logheaders = {
-                    'authority': 'www.youtube.com',
-                    'accept': '*/*',
-                    'accept-language': 'en-US,en;q=0.7',
-                    'authorization': env.authorization,
-                    'content-type': 'application/json',
-                    'Cookie': f"SID={env.SID};HSID={env.HSID};SSID={env.SSID};APISID={env.APISID};SAPISID={env.SAPISID};",
-                    'origin': 'https://www.youtube.com',
-                    'sec-ch-ua': '"Not/A)Brand";v="99", "Brave";v="115", "Chromium";v="115"',
-                    'sec-ch-ua-mobile': '?0',
-                    'sec-ch-ua-model': '""',
-                    'sec-ch-ua-platform': '"Windows"',
-                    'sec-ch-ua-platform-version': '"10.0.0"',
-                    'sec-fetch-dest': 'empty',
-                    'sec-fetch-mode': 'same-origin',
-                    'sec-fetch-site': 'same-origin',
-                    'sec-gpc': '1',
-                    'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36',
-                    'x-goog-authuser': '0',
-                    'x-origin': 'https://www.youtube.com',
-                    'x-youtube-bootstrap-logged-in': 'true',
-                }
+            await self._rotate_cookies()
+            if self.disable_web:
+                try:
+                    import env
+                    logging.info(f"{Fore.BLUE}LOGIN REQUIRED,{Fore.RESET} will try use credentials")
+                    self.using_env = True
+                    self.logheaders = {
+                        'authority': 'www.youtube.com',
+                        'accept': '*/*',
+                        'accept-language': 'en-US,en;q=0.7',
+                        'authorization': env.authorization,
+                        'content-type': 'application/json',
+                        'Cookie': f"SID={env.SID};HSID={env.HSID};SSID={env.SSID};APISID={env.APISID};SAPISID={env.SAPISID};__Secure_1PSIDTS={env.PSIDTS}",
+                        'origin': 'https://www.youtube.com',
+                        'sec-ch-ua': '"Not/A)Brand";v="99", "Brave";v="115", "Chromium";v="115"',
+                        'sec-ch-ua-mobile': '?0',
+                        'sec-ch-ua-model': '""',
+                        'sec-ch-ua-platform': '"Windows"',
+                        'sec-ch-ua-platform-version': '"10.0.0"',
+                        'sec-fetch-dest': 'empty',
+                        'sec-fetch-mode': 'same-origin',
+                        'sec-fetch-site': 'same-origin',
+                        'sec-gpc': '1',
+                        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36',
+                        'x-goog-authuser': '0',
+                        'x-origin': 'https://www.youtube.com',
+                        'x-youtube-bootstrap-logged-in': 'true',
+                    }
 
-                logparams = {
-                    'key': "AIzaSyB-63vPrdThhKuerbB2N_l7Kwwcxj6yUA",
-                    'prettyPrint': 'false',
-                }
+                    logparams = {
+                        'key': "AIzaSyB-63vPrdThhKuerbB2N_l7Kwwcxj6yUA",
+                        'prettyPrint': 'false',
+                    }
 
-                logjson_data = {
-                    'context': {
-                        'client': {
-                                'clientName': "IOS",
-                                'clientVersion': '17.33.2', 
-                                'userAgent': 'com.google.ios.youtube/17.33.2 (iPhone14,3; U; CPU iOS 15_6 like Mac OS X)',
-                                'deviceModel': 'iPhone14,3',
-                                'acceptHeader': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-                                'hl': 'en',
+                    logjson_data = {
+                        'context': {
+                            'client': {
+                                    'clientName': "IOS",
+                                    'clientVersion': '17.33.2', 
+                                    'userAgent': 'com.google.ios.youtube/17.33.2 (iPhone14,3; U; CPU iOS 15_6 like Mac OS X)',
+                                    'deviceModel': 'iPhone14,3',
+                                    'acceptHeader': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+                                    'hl': 'en',
+                                },
+                            'user': {
+                                'lockedSafetyMode': False,
                             },
-                        'user': {
-                            'lockedSafetyMode': False,
-                        },
 
-                    },
-                    'videoId': self.video_id,
-                    'playbackContext': {
-                        'contentPlaybackContext': {
-                            'html5Preference': 'HTML5_PREF_WANTS',
                         },
-                    },
-                    'racyCheckOk': True,
-                    'contentCheckOk': True,
-                }
-                async with self.session.post(
-                    'https://www.youtube.com/youtubei/v1/player',
-                    params=logparams,
-                    headers=self.logheaders,
-                    json=logjson_data, proxy=self.proxypreset
-                ) as r:
-                    logging.debug(f"request info: {json.dumps(self.request_to_dict(r.request_info))}")
-                    response = await r.text("utf-8")
-                    responsejson = json.loads(response)
-                self.logger.debug(f"Playability Status: {responsejson['playabilityStatus'].get('status')}")
-                self.logger.debug(f"Other playability status information:\n{responsejson['playabilityStatus']}")
-                for key, value in responsejson["videoDetails"].items():
-                    self.other_video_info[key] = value
-                source = 'IOS'
-            except:
-                self.logger.info(f"{Fore.BLUE}LOGIN REQUIRED.{Fore.RESET} Will try to use TVHTML5_SIMPLY_EMBEDDED_PLAYER to grab info")
-                json_data = {
-                    "context": {
-                        "client": {
-                            "clientName": "TVHTML5_SIMPLY_EMBEDDED_PLAYER",
-                            "clientVersion": "2.0",
-                            "hl": "en",
-                            "timeZone": "UTC",
-                            "utcOffsetMinutes": 0
+                        'videoId': self.video_id,
+                        'playbackContext': {
+                            'contentPlaybackContext': {
+                                'html5Preference': 'HTML5_PREF_WANTS',
+                            },
                         },
-                        "thirdParty": {
-                            "embedUrl": "https://www.youtube.com/"
-                        }
-                    },
-                    "videoId": self.video_id,
-                    "playbackContext": {
-                        "contentPlaybackContext": {
-                            "html5Preference": "HTML5_PREF_WANTS",
-                            "signatureTimestamp": 19828
-                        }
-                    },
-                    "contentCheckOk": True,
-                    "racyCheckOk": True
-                }
-                async with self.session.post("https://www.youtube.com/youtubei/v1/player?key=AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8", headers=headers, json=json_data, proxy=self.proxypreset) as response:
-                    logging.debug(f"request info: {json.dumps(self.request_to_dict(response.request_info))}")
-                    response = await response.text("utf-8")
-                    responsejson = json.loads(response)
+                        'racyCheckOk': True,
+                        'contentCheckOk': True,
+                    }
+                    async with self.session.post(
+                        'https://www.youtube.com/youtubei/v1/player',
+                        params=logparams,
+                        headers=self.logheaders,
+                        json=logjson_data, proxy=self.proxypreset
+                    ) as r:         
+                        logging.debug(f"request info: {json.dumps(self.request_to_dict(r.request_info))}")
+                        response = await r.text("utf-8")
+                        responsejson = json.loads(response)
                     self.logger.debug(f"Playability Status: {responsejson['playabilityStatus'].get('status')}")
                     self.logger.debug(f"Other playability status information:\n{responsejson['playabilityStatus']}")
-                    if responsejson['playabilityStatus'].get("status") == "UNPLAYABLE":
-                        raise self.download_error(f"Errored in fetching info: {responsejson['playabilityStatus'].get('reason')}, maybe youtube thinks youre a bot.")
-                    # avaliable_itags = list(map(lambda x: int(x[1].get('itag')), self.video_unmerged_info.items()))
-                    # for index, i in enumerate(responsejson['streamingData']['adaptiveFormats']):
-                    #     if int(i['itag']) in avaliable_itags:
-                    #         continue
-                    #     i['source'] = "TVHTML5_SIMPLY_EMBEDDED_PLAYER"
-                    #     self.video_unmerged_info[str(index)] = i
-                    #     avaliable_itags.append(int(i['itag']))
-                    # avaliable_itags = list(map(lambda x: int(x[1].get('itag')), self.video_merged_info.items()))
-                    # for index, i in enumerate(responsejson['streamingData']['formats']):
-                    #     if int(i['itag']) in avaliable_itags:
-                    #         continue
-                    #     i['source'] = "TVHTML5_SIMPLY_EMBEDDED_PLAYER"
-                    #     self.video_merged_info[str(index)] = i
-                    #     avaliable_itags.append(int(i['itag']))
+                    if responsejson['playabilityStatus']['status'] == "LOGIN_REQUIRED":
+                        url = quote(f"https://www.youtube.com/watch?v={self.video_id}", safe="")
+                        _params = {
+                            'service': 'youtube',
+                            'uilel': '3',
+                            'passive': 'true',
+                            'continue': f'https://www.youtube.com/signin?action_handle_signin=true&app=desktop&hl=en&next={url}',
+                            'hl': 'en',
+                            'ec': '65620',
+                        }
+                        _headers = {
+                            'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+                            'accept-language': 'en-US,en;q=0.7',
+                            'Cookie': f"SID={env.SID};HSID={env.HSID};SSID={env.SSID};APISID={env.APISID};SAPISID={env.SAPISID};__Secure_1PSIDTS={env.PSIDTS}",
+                            'priority': 'u=0, i',
+                            'referer': 'https://www.youtube.com/',
+                            'sec-ch-ua': '"Brave";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
+                            'sec-ch-ua-arch': '"x86"',
+                            'sec-ch-ua-bitness': '"64"',
+                            'sec-ch-ua-full-version-list': '"Brave";v="131.0.0.0", "Chromium";v="131.0.0.0", "Not_A Brand";v="24.0.0.0"',
+                            'sec-ch-ua-mobile': '?0',
+                            'sec-ch-ua-model': '""',
+                            'sec-ch-ua-platform': '"Windows"',
+                            'sec-ch-ua-platform-version': '"10.0.0"',
+                            'sec-ch-ua-wow64': '?0',
+                            'sec-fetch-dest': 'document',
+                            'sec-fetch-mode': 'navigate',
+                            'sec-fetch-site': 'cross-site',
+                            'sec-fetch-user': '?1',
+                            'sec-gpc': '1',
+                            'upgrade-insecure-requests': '1',
+                            'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+                        }
+                        async with self.session.get('https://accounts.google.com/ServiceLogin', params=_params, headers=_headers,) as r:
+                            print(r.status, r.url, r.headers.get("location"))
+                        async with self.session.post(
+                            'https://www.youtube.com/youtubei/v1/player',
+                            params=logparams,
+                            headers=self.logheaders,
+                            json=logjson_data, proxy=self.proxypreset
+                        ) as r:         
+                            logging.debug(f"request info: {json.dumps(self.request_to_dict(r.request_info))}")
+                            response = await r.text("utf-8")
+                            responsejson = json.loads(response)
+                        self.logger.debug(f"Playability Status: {responsejson['playabilityStatus'].get('status')}")
+                        self.logger.debug(f"Other playability status information:\n{responsejson['playabilityStatus']}")
                     for key, value in responsejson["videoDetails"].items():
                         self.other_video_info[key] = value
-                    source = 'TVHTML5_SIMPLY_EMBEDDED_PLAYER'
+                    source = 'IOS'
+                except Exception as e:
+                    self.logger.debug(traceback.format_exc())
+                    self.logger.info(f"{Fore.BLUE}LOGIN REQUIRED.{Fore.RESET} Will try to use TVHTML5_SIMPLY_EMBEDDED_PLAYER to grab info")
+                    json_data = {
+                        "context": {
+                            "client": {
+                                "clientName": "TVHTML5_SIMPLY_EMBEDDED_PLAYER",
+                                "clientVersion": "2.0",
+                                "hl": "en",
+                                "timeZone": "UTC",
+                                "utcOffsetMinutes": 0
+                            },
+                            "thirdParty": {
+                                "embedUrl": "https://www.youtube.com/"
+                            }
+                        },
+                        "videoId": self.video_id,
+                        "playbackContext": {
+                            "contentPlaybackContext": {
+                                "html5Preference": "HTML5_PREF_WANTS",
+                                "signatureTimestamp": 19828
+                            }
+                        },
+                        "contentCheckOk": True,
+                        "racyCheckOk": True
+                    }
+                    async with self.session.post("https://www.youtube.com/youtubei/v1/player?key=AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8", headers=headers, json=json_data, proxy=self.proxypreset) as response:
+                        logging.debug(f"request info: {json.dumps(self.request_to_dict(response.request_info))}")
+                        response = await response.text("utf-8")
+                        responsejson = json.loads(response)
+                        self.logger.debug(f"Playability Status: {responsejson['playabilityStatus'].get('status')}")
+                        self.logger.debug(f"Other playability status information:\n{responsejson['playabilityStatus']}")
+                        if responsejson['playabilityStatus'].get("status") == "UNPLAYABLE":
+                            raise self.download_error(f"Errored in fetching info: {responsejson['playabilityStatus'].get('reason')}, maybe youtube thinks youre a bot.")
+                        # avaliable_itags = list(map(lambda x: int(x[1].get('itag')), self.video_unmerged_info.items()))
+                        # for index, i in enumerate(responsejson['streamingData']['adaptiveFormats']):
+                        #     if int(i['itag']) in avaliable_itags:
+                        #         continue
+                        #     i['source'] = "TVHTML5_SIMPLY_EMBEDDED_PLAYER"
+                        #     self.video_unmerged_info[str(index)] = i
+                        #     avaliable_itags.append(int(i['itag']))
+                        # avaliable_itags = list(map(lambda x: int(x[1].get('itag')), self.video_merged_info.items()))
+                        # for index, i in enumerate(responsejson['streamingData']['formats']):
+                        #     if int(i['itag']) in avaliable_itags:
+                        #         continue
+                        #     i['source'] = "TVHTML5_SIMPLY_EMBEDDED_PLAYER"
+                        #     self.video_merged_info[str(index)] = i
+                        #     avaliable_itags.append(int(i['itag']))
+                        for key, value in responsejson["videoDetails"].items():
+                            self.other_video_info[key] = value
+                        source = 'TVHTML5_SIMPLY_EMBEDDED_PLAYER'
+            else:
+                self.using_env = True
+                import env
+                _headers = {
+                    'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+                    'accept-language': 'en-US,en;q=0.7',
+                    'Cookie': f"SID={env.SID};HSID={env.HSID};SSID={env.SSID};APISID={env.APISID};SAPISID={env.SAPISID};__Secure_1PSIDTS={env.PSIDTS}",
+                    'priority': 'u=0, i',
+                    'sec-ch-ua': '"Brave";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
+                    'sec-ch-ua-arch': '""',
+                    'sec-ch-ua-bitness': '"64"',
+                    'sec-ch-ua-full-version-list': '"Brave";v="131.0.0.0", "Chromium";v="131.0.0.0", "Not_A Brand";v="24.0.0.0"',
+                    'sec-ch-ua-mobile': '?1',
+                    'sec-ch-ua-model': '"Nexus 5"',
+                    'sec-ch-ua-platform': '"Android"',
+                    'sec-ch-ua-platform-version': '"6.0"',
+                    'sec-ch-ua-wow64': '?0',
+                    'sec-fetch-dest': 'document',
+                    'sec-fetch-mode': 'navigate',
+                    'sec-fetch-site': 'none',
+                    'sec-fetch-user': '?1',
+                    'sec-gpc': '1',
+                    'upgrade-insecure-requests': '1',
+                    'user-agent': 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36',
+                }
+                async with self.session.get(f"https://youtube.com/watch?v={self.video_id}", headers=_headers, proxy=self.proxypreset) as r:
+                    response = await r.text(encoding="utf-8")
+                    response = response.encode("utf-8").decode("unicode_escape")
+                    initialplayerresponsepattern = r'var ytInitialPlayerResponse = (.*?\"adBreakHeartbeatParams\":\"(?:.*?)\"\});</script>'
+                    if "Sign in to" in response:
+                        self.logger.debug("Need to sign in to get web source.")
+                        _params = {
+                            'service': 'youtube',
+                            'uilel': '3',
+                            'passive': 'true',
+                            'continue': f'https://www.youtube.com/signin?action_handle_signin=true&app=m&hl=en&next=%2Fwatch%3Fv%3D{self.video_id}',
+                            'hl': 'en',
+                        }
+                        async with self.session.get('https://accounts.google.com/ServiceLogin', headers=_headers, params=_params) as r:
+                            self.logger.debug(f"result url: {r.url}")
+                            response = await r.text(encoding="utf-8")
+                            response = response.encode("utf-8").decode("unicode_escape")
+                    matches = re.search(initialplayerresponsepattern, response, re.DOTALL)
+                    with open("matches.txt", "w", encoding="utf-8") as f1:
+                        f1.write(response)
+                    if not matches:
+                        raise ConnectionError(f"couldn't get the initial response from default youtube site")
+                    responsejson: dict = json.loads(matches.group(1))
+                    for key, value in responsejson["videoDetails"].items():
+                        self.other_video_info[key] = value
+                    source = "web"
+            avaliable_itags = [int(value['itag']) for value in self.video_unmerged_info.values() if self._check_disable_web(value)]
+            if responsejson.get("streamingData"):
+                try:
+                    for index, i in enumerate(responsejson['streamingData']['adaptiveFormats']):
+                        if source == 'web' and self.disable_web:
+                            break
+                        if int(i['itag']) in avaliable_itags:
+                            continue
+                        i['source'] = source
+                        self.video_unmerged_info[str(index)] = i
+                        avaliable_itags.append(int(i['itag']))
+                except KeyError:
+                    raise self.download_error(f"Failed at getting info: {responsejson['playabilityStatus']}")
+                avaliable_itags = [int(value['itag']) for value in self.video_merged_info.values() if self._check_disable_web(value)]
+                for index, i in enumerate(responsejson['streamingData']['formats']):
+                    if int(i['itag']) in avaliable_itags:
+                        continue
+                    if source == 'web' and self.disable_web:
+                        break
+                    i['source'] = source
+                    self.video_merged_info[str(index)] = i
+                    avaliable_itags.append(int(i['itag']))
+                for key, value in responsejson["videoDetails"].items():
+                    self.other_video_info[key] = value
+                if self.video_unmerged_info.get("0"):
+                    if self.video_unmerged_info["0"].get("signatureCipher"):
+                        self.logger.debug(f"found unmerged signatured formats from {source} response")
+                        self.all_formats['unmerged_sig'] = self.video_unmerged_info
+                        self.sortdictbysize("unmerged_unsig")
+                    elif self.video_unmerged_info["0"].get("url"):
+                        self.logger.debug(f"found unmerged unsignatured formats from {source} response")
+                        self.all_formats['unmerged_unsig'] = self.video_unmerged_info
+                        self.sortdictbysize("unmerged_unsig")
+                if self.video_merged_info.get("0"):
+                    if self.video_merged_info["0"].get("signatureCipher"):
+                        self.logger.debug(f"found merged signatured formats from {source} response")
+                        if self.premerged:
+                            for key, value in deepcopy(self.video_merged_info).items():
+                                if value.get('content-length'):
+                                    continue
+                                newurl = await self._decipher_url(value.get('signatureCipher'))
+                                async with self.session.head(newurl, proxy=self.proxypreset) as r:
+                                    logging.debug(f"request info: {json.dumps(self.request_to_dict(r.request_info))}")
+                                    self.video_merged_info[key]['contentLength'] = r.headers.get('content-length')
+                                    self.video_merged_info[key]['url'] = newurl
+
+                        self.all_formats['merged_sig'] = self.video_merged_info
+                        self.sortdictbysize("merged_unsig")
+                    elif self.video_merged_info["0"].get("url"):
+                        self.logger.debug("found merged unsignatured formats from web response")
+                        for key, value in deepcopy(self.video_merged_info).items():
+                            if value.get('content-length'):
+                                continue
+                            if not self.expire:
+                                self.expire = datetime.fromtimestamp(int(re.findall(r"expire=(\d+)", value.get('url'))[0]))
+                            async with self.session.head(value.get('url'), proxy=self.proxypreset) as r:
+                                logging.debug(f"request info: {json.dumps(self.request_to_dict(r.request_info))}")
+                                self.video_merged_info[key]['contentLength'] = r.headers.get('content-length')
+                        self.all_formats['merged_unsig'] = self.video_merged_info
+                        self.sortdictbysize("merged_unsig")
         elif responsejson['playabilityStatus'].get('status') == "ERROR":
             raise ValueError(f"Video Error from youtube: {responsejson['playabilityStatus'].get('reason')}")
         else:
@@ -1660,6 +1930,8 @@ class ytdownload:
     async def _decipher_url(self, ciphered_url: str, unciphered: bool = False):
         newurl = ciphered_url
         await self._get_decipher_functions()
+        if self._decipher == False:
+            return ciphered_url
         if not unciphered:
             secondfunction = self.functions.get('secondfunction')
             wholefunctionsig = self.functions.get('wholefunctionsig')
@@ -1726,25 +1998,33 @@ class ytdownload:
             logging.debug(f"request info: {json.dumps(self.request_to_dict(response.request_info))}")
             basejstext = await response.text("utf-8")
         sigpattern = r'((.*?)=function\(a\)(.*?)return a.join\(\"\"\)\}\;)'
-        sigmatches = re.findall(sigpattern, basejstext[basejstext.find('return a.join("")};')-300: basejstext.find('return a.join("")};') + len('return a.join("")};')])
-        functionname = sigmatches[0][1]
-        self.logger.debug(f"found first function, name: {functionname}")
-        wholefunctionsig = sigmatches[0][0]
-        self.logger.debug(f"whole function: \n{wholefunctionsig}")
-        secfunctionpattern = r';(.*?)\.(.*?)\(a'
-        secondfunctionname = re.findall(secfunctionpattern, wholefunctionsig)[0][0]
-        self.logger.debug(f"found second function, name: {secondfunctionname}")
-        secondfunction = re.findall(fr'(var {re.escape(secondfunctionname)}=([\s\S]*?));var', basejstext[basejstext.find(f'var {secondfunctionname}=')-50:basejstext.find(f'var {secondfunctionname}=')+len(f'var {secondfunctionname}=') + 200])[0][0]
-        self.logger.debug(f"whole function: \n{secondfunction}")
-        thirdfunctionpattern = r'((.*?)=function\(a\)\{var b=([\s\S]*?)return b.join\(\"\"\)};)'
-        matches = re.findall(thirdfunctionpattern, basejstext[basejstext.find('return b.join("")};')-8000:basejstext.find('return b.join("")};')+len('return b.join("")};')])
-        thirdfunction = matches[0][0]
-        thirdfunctionname = matches[0][1]
-        self.logger.debug(f"found third function, name: {thirdfunction}")    
-        self.functions = {'secondfunction': secondfunction, 'wholefunctionsig': wholefunctionsig, 
-                                'functioname': functionname, 'thirdfunction': thirdfunction, 
-                                'thirdfunctionname': thirdfunctionname}
-        self.got_functions = True
+        sigmatches = re.search(sigpattern, basejstext[basejstext.find('return a.join("")};')-300: basejstext.find('return a.join("")};') + len('return a.join("")};')])
+        if not sigmatches:
+            self._decipher = False
+            self.logger.debug(f"Couldnt fetch deciphering functions")
+            secondfunction = None
+            wholefunctionsig = None
+            functionname = None
+        else:
+            self._decipher = True
+            functionname = sigmatches[0][1]
+            self.logger.debug(f"found first function, name: {functionname}")
+            wholefunctionsig = sigmatches[0][0]
+            self.logger.debug(f"whole function: \n{wholefunctionsig}")
+            secfunctionpattern = r';(.*?)\.(.*?)\(a'
+            secondfunctionname = re.findall(secfunctionpattern, wholefunctionsig)[0][0]
+            self.logger.debug(f"found second function, name: {secondfunctionname}")
+            secondfunction = re.findall(fr'(var {re.escape(secondfunctionname)}=([\s\S]*?));var', basejstext[basejstext.find(f'var {secondfunctionname}=')-50:basejstext.find(f'var {secondfunctionname}=')+len(f'var {secondfunctionname}=') + 200])[0][0]
+            self.logger.debug(f"whole function: \n{secondfunction}")
+            thirdfunctionpattern = r'((.*?)=function\(a\)\{var b=([\s\S]*?)return b.join\(\"\"\)};)'
+            matches = re.findall(thirdfunctionpattern, basejstext[basejstext.find('return b.join("")};')-8000:basejstext.find('return b.join("")};')+len('return b.join("")};')])
+            thirdfunction = matches[0][0]
+            thirdfunctionname = matches[0][1]
+            self.logger.debug(f"found third function, name: {thirdfunction}")    
+            self.functions = {'secondfunction': secondfunction, 'wholefunctionsig': wholefunctionsig, 
+                                    'functioname': functionname, 'thirdfunction': thirdfunction, 
+                                    'thirdfunctionname': thirdfunctionname}
+            self.got_functions = True
     
     async def _extract_manifest(self, hls_manifest_url):
         async with self.session.get(hls_manifest_url, proxy=self.proxypreset) as r:
