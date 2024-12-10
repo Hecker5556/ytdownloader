@@ -105,7 +105,7 @@ class ytdownload:
         self.session = None
         self.title = None
         self.expire = None
-        self.disable_web = False # youtube's web response has been bugging, returning 403s, even on youtube it does it. on youtube after a few 403s it will fall back to some other method where it sends encrypted data to get the video itag it wants.
+        self.disable_web = True # youtube's web response has been bugging, returning 403s, even on youtube it does it. on youtube after a few 403s it will fall back to some other method where it sends encrypted data to get the video itag it wants.
         self.tempfiles = []
         self.table = None
         self.got_functions = None
