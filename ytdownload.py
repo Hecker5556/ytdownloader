@@ -626,6 +626,7 @@ class ytdownload:
                 if not self.manifest_video:
                     raise self.no_valid_formats(f"No valid formats under the max size {self.maxsize}")
         elif self.itag:
+            await self._get_decipher_functions()
             if self.itag in [17, 18, 22]:    
                 self.avaliable = "merged_unsig" if self._decipher == False or self.all_formats.get("merged_unsig") and self.needlogin else "merged_unsig" if not self.all_formats.get("merged_sig") else "merged_sig"
                 for key, value in self.all_formats[self.avaliable].items():
