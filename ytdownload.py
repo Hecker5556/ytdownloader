@@ -1741,10 +1741,10 @@ class ytdownload:
         'x-origin': 'https://www.youtube.com',
         'x-youtube-bootstrap-logged-in': 'true',
         }
-        clients: dict ={'IOS': {'clientVersion': '17.33.2', 
-                                'userAgent': 'com.google.ios.youtube/17.33.2 (iPhone14,3; U; CPU iOS 15_6 like Mac OS X)',
+        clients: dict ={'IOS': {'clientVersion': "19.45.4", 
+                                'userAgent': "com.google.ios.youtube/19.45.4 (iPhone16,2; U; CPU iOS 18_1_0 like Mac OS X;)",
                                 'apikey': 'AIzaSyB-63vPrdThhKuerbB2N_l7Kwwcxj6yUA',
-                                'deviceModel': 'iPhone14,3'},
+                                'deviceModel': 'iPhone16,2'},
                         'XBOXONEGUIDE': {'clientVersion': '1.0',
                                         'userAgent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; Xbox; Xbox One) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/46.0.2486.0 Safari/537.36 Edge/13.10553',
                                         'apikey': 'AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8'},
