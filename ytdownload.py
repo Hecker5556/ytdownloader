@@ -200,7 +200,7 @@ class ytdownload:
                         self.returnurlonly = value
                 case "proxy":
                     if isinstance(value, str):
-                        if value.startswith("https://"):
+                        if value.startswith("http://"):
                             self.proxy = value
                         elif value.startswith("socks"):
                             self.proxy = value
@@ -230,7 +230,7 @@ class ytdownload:
             self.logger = logging.getLogger(__name__)
         self.proxypreset = None
         if self.proxy:
-            self.proxypreset = self.proxy if self.proxy and self.proxy.startswith('https') else None
+            self.proxypreset = self.proxy if self.proxy and self.proxy.startswith('http') else None
     def returnstringdate(self, timething: str):
         if len(timething) == 5:
             return datetime.strptime(timething, "%M:%S").strftime("%H:%M:%S")
@@ -1366,7 +1366,7 @@ class ytdownload:
         self.using_env = False
         source = 'web'
         self.logger.debug(f"Playability Status: {responsejson['playabilityStatus'].get('status')}")
-        self.logger.debug(f"Other playability status information:\n{responsejson['playabilityStatus']}")
+        self.logger.debug(f"Other playability status information:\n{json.dumps(responsejson['playabilityStatus'], ensure_ascii=False)}")
         if responsejson['playabilityStatus'].get('status') == 'LOGIN_REQUIRED':
             self.needlogin = True
             await self._rotate_cookies()
