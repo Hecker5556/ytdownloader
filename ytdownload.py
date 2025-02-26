@@ -51,7 +51,7 @@ class ytdownload:
 
             onlyitag (bool, optional): whether to download only that specific itag
 
-            filename (str, optional): set output filename
+            filename (str, optional): set output filename, %s will be replaced with generated filename, %f will be replaced with /
 
             start (str, optional): set timestamp at which the video should start HH:MM:SS/MM:SS
 
@@ -66,6 +66,10 @@ class ytdownload:
             check_decipher (bool, optional): whether to check if deciphering was successful (can get ratelimited when downloading playlist)
 
             search (str, optional): query to search on youtube
+
+            cookies (dict|str, optional): cookies to use
+
+            visitor_data (str, optional): visitor_data to use along side cookies (x-goog-visitor-id header, required for ios api)
         """
         self.link = None
         self.playlist = False
@@ -109,6 +113,8 @@ class ytdownload:
         self.tempfiles = []
         self.table = None
         self.got_functions = None
+        self.cookies = None
+        self.visitor_data = None
         for key, value in kwargs.items():
             if value == None:
                 continue
@@ -194,10 +200,12 @@ class ytdownload:
                     if isinstance(value, str) and len(value) in [5, 8]:
                         self.end = self.returnstringdate(value)
                     else:
-                        print(f"{key}={value} is not a valid argument")
+                        print(f"{key}={value} is not a valid argument, must be str and either 5 characters or 8")
                 case "returnurlonly":
                     if isinstance(value, bool):
                         self.returnurlonly = value
+                    else:
+                        print(f"{key}={value} is not a valid argument, must be bool")
                 case "proxy":
                     if isinstance(value, str):
                         if value.startswith("http://"):
@@ -207,37 +215,49 @@ class ytdownload:
                         else:
                             print(f"{value} is not a valid proxy! Valid https/socks5 proxy example: socks4://127.0.0.1:9050 / https://username:password@69.14.15.16")
                     else:
-                        print(f"{key}={value} is not a valid argument")
+                        print(f"{key}={value} is not a valid argument, must be str")
                 case "overwrite":
                     if isinstance(value, bool):
                         self.overwrite = value
                     else:
-                        print(f"{key}={value} is not a valid argument")
+                        print(f"{key}={value} is not a valid argument, must be bool")
                 case "check_decipher":
                     if isinstance(value, bool):
                         self.check_decipher = value
                     else:
-                        print(f"{key}={value} is not a valid argument")
+                        print(f"{key}={value} is not a valid argument, must be bool")
                 case "search":
                     if isinstance(value, str):
                         self.query = value
                     else:
-                        print(f"{key}={value} is not a valid argument")
+                        print(f"{key}={value} is not a valid argument, must be str")
+                case "cookies":
+                    if isinstance(value, dict):
+                        self.cookies = value
+                    elif isinstance(value, str):
+                        self.cookies = {}
+                        for i in value.split(";"):
+                            splitted = i.split('=')
+                            self.cookies[splitted[0]] = splitted[1]
+                    else:
+                        print(f"{key}={value} is not a valid argument, must be dict/str")
+                case "visitor_data":
+                    if isinstance(value, str):
+                        self.visitor_data = value
+                    else:
+                        print(f"{key}={value} is not a valid argument, must be str")
                 case _:
                     print(f"unknown argument: {key}")
         if not self.logger:
             logging.basicConfig(level=logging.INFO, format="[%(asctime)s] - %(message)s, line %(lineno)d", datefmt='%H:%M:%S')
             self.logger = logging.getLogger(__name__)
-        self.proxypreset = None
-        if self.proxy:
-            self.proxypreset = self.proxy if self.proxy and self.proxy.startswith('http') else None
     def returnstringdate(self, timething: str):
         if len(timething) == 5:
             return datetime.strptime(timething, "%M:%S").strftime("%H:%M:%S")
         elif len(timething) == 8:
             return datetime.strptime(timething, "%H:%M:%S").strftime("%H:%M:%S")
     def _make_connector(self):
-        if self.proxy and self.proxy.startswith("socks"):
+        if self.proxy:
             return ProxyConnector.from_url(self.proxy)
         return aiohttp.TCPConnector()
     async def download(self, link: str = None):
@@ -324,6 +344,11 @@ class ytdownload:
                         error = "no valid formats"
                         self.error = e
                         break
+                    except ValueError as e:
+                        if "new cookies" in str(e):
+                            self.logger.info(f"{Fore.RED}{e}{Fore.RESET}")
+                            self.error = e
+                            break
                     except Exception as e:
                         self.logger.debug(traceback.format_exc())
                         self.logger.info(f"errored on {self.link}, error: {e}, full error on verbose mode")
@@ -382,7 +407,7 @@ class ytdownload:
         }
         if not self.session:
             self.session = aiohttp.ClientSession(connector=self._make_connector())
-        async with self.session.post('https://www.youtube.com/youtubei/v1/search', headers=headers, params=params, json=json_data) as r:
+        async with self.session.post('https://www.youtube.com/youtubei/v1/search', headers=headers, params=params, json=json_data, cookies=self.cookies) as r:
             response = await r.text('utf-8')
             responsejson = json.loads(response)
         videos = {}
@@ -441,7 +466,7 @@ class ytdownload:
 
         if not self.session:
             self.session = aiohttp.ClientSession(connector= self._make_connector())
-        async with self.session.post('https://www.youtube.com/youtubei/v1/next', params=params, headers=headers, json=json_data, proxy=self.proxypreset) as r:
+        async with self.session.post('https://www.youtube.com/youtubei/v1/next', params=params, headers=headers, json=json_data,  cookies=self.cookies) as r:
             response = await r.text("utf-8")
             responsejson = json.loads(response)
         if not responsejson.get('contents').get('twoColumnWatchNextResults').get('playlist'):
@@ -635,9 +660,10 @@ class ytdownload:
                         break
                 if not self.video:
                     raise self.no_valid_formats(f"Couldn't find a format with that itag")
-                self.video['url'] = await self._decipher_url(self.video.get('signatureCipher') if self.video.get('signatureCipher') else self.video.get('url'), unciphered=True if self.video.get('url') else False)
+                self.video['url'] = await self._decipher_url(self.video.get('signatureCipher') if self.video.get('signatureCipher') else self.video.get('url'), unciphered=False if self.video.get('signatureCipher') else True)
             else:
-                await self._extract_manifest(self.all_formats['manifest']['0'])
+                if self.all_formats['manifest'].get('0'):
+                    await self._extract_manifest(self.all_formats['manifest'].get('0'))
                 for k, v in deepcopy(self.all_formats).items():
                     if k == "manifest":
                         for key, value in v.items():
@@ -645,7 +671,7 @@ class ytdownload:
                                 self.manifest = True
                                 self.manifest_video = value
                                 break
-                            if int(value.get('audio_itag')) == int(self.itag):
+                            elif int(value.get('audio_itag')) == int(self.itag):
                                 self.manifest = True
                                 self.manifest_video = value
                                 break
@@ -741,7 +767,7 @@ class ytdownload:
                 self.ext = "m4a" if "mp4a" in self.audio['mimeType'] else 'opus' if 'webm' in self.audio['mimeType'] else 'ec-3' if 'ec-3' in self.audio['mimeType'] else 'ac-3'
                 filename = f"temp_audio_{int(datetime.now().timestamp())}.{self.ext}"
                 self.tempfiles.append(filename)
-                logging.debug(f"Downloading audio itag {self.audio.get('itag')}")
+                self.logger.debug(f"Downloading audio itag {self.audio.get('itag')}")
                 while True:
                     await self._download(self.audio['url'], filename, None if not self.audio.get('contentLength') else int(self.audio['contentLength']))
                     self.result_file = filename
@@ -756,7 +782,7 @@ class ytdownload:
                 ext_vid = "mp4" if ("avc1" in self.video['mimeType'] or 'av01' in self.video['mimeType']) else 'webm'
                 filename_vid = f"temp_video_{int(datetime.now().timestamp())}.{ext_vid}"
                 self.tempfiles.append(filename_vid)
-                logging.debug(f"Downloading video itag {self.video.get('itag')}")
+                self.logger.debug(f"Downloading video itag {self.video.get('itag')}")
                 while True:
                     await self._download(self.video['url'], filename_vid, None if not self.video.get('contentLength') else int(self.audio['contentLength']) if self.audio.get('contentLength') else None)
                     self.result_file = filename_vid
@@ -772,7 +798,7 @@ class ytdownload:
                 self.ext = "m4a" if "mp4a" in self.audio['mimeType'] else 'opus' if 'webm' in self.audio['mimeType'] else 'ec-3' if 'ec-3' in self.audio['mimeType'] else 'ac-3'
                 filename = f"temp_audio_{int(datetime.now().timestamp())}.{self.ext}"
                 self.tempfiles.append(filename)
-                logging.debug(f"Downloading audio itag {self.audio.get('itag')}")
+                self.logger.debug(f"Downloading audio itag {self.audio.get('itag')}")
                 while True:
                     await self._download(self.audio['url'], filename, None if not self.audio.get('contentLength') else int(self.audio['contentLength']))
                     self.result_file = filename
@@ -784,20 +810,20 @@ class ytdownload:
                         await asyncio.sleep(count*5)
                         count +=1
             elif self.video and self.audio and not self.video.get('type'):
-                logging.debug(f"Downloading video itag {self.video.get('itag')}\nvideo url: {self.video['url']}\nDownloading audio itag {self.audio.get('itag')}\naudio url: {self.audio['url']}")
+                self.logger.debug(f"Downloading video itag {self.video.get('itag')}\nvideo url: {self.video['url']}\nDownloading audio itag {self.audio.get('itag')}\naudio url: {self.audio['url']}")
                 await self._unmerged_download_merge()
             elif self.video and self.video.get('type'):
                 ext_vid = "mp4" if ("avc1" in self.video['mimeType'] or 'av01' in self.video['mimeType']) else 'webm'
                 filename_vid = f"temp_video_{int(datetime.now().timestamp())}.{ext_vid}"
                 self.tempfiles.append(filename_vid)
-                logging.debug(f"Downloading video itag {self.video.get('itag')}")
+                self.logger.debug(f"Downloading video itag {self.video.get('itag')}")
                 await self._dash_download(filename_vid)
                 if self.audio:
                     ext_aud = "m4a" if "mp4a" in self.audio['mimeType'] else 'opus' if 'webm' in self.audio['mimeType'] else 'ec-3' if 'ec-3' in self.audio['mimeType'] else 'ac-3'
                     compatible = True if ext_vid == "mp4" and ext_aud in ['m4a', 'ec-3', 'ac-3'] else True if ext_vid == 'webm' and ext_aud in ['opus'] else False
                     filename_aud = f"temp_audio_{int(datetime.now().timestamp())}.{ext_aud}"
                     self.tempfiles.append(filename_aud)
-                    logging.debug(f"Downloading audio itag {self.audio.get('itag')}")
+                    self.logger.debug(f"Downloading audio itag {self.audio.get('itag')}")
                     await self._download(self.audio['url'], filename, None if not self.audio.get('contentLength') else int(self.audio['contentLength']))
                     self.result_file = f"merged_{int(datetime.now().timestamp())}.{ext_vid}"
                     process = await asyncio.subprocess.create_subprocess_exec("ffmpeg", *[x for x in ['-i', filename_vid, '-i', filename_aud, '-c:v', 'copy', "-c:a" if compatible else "", "copy" if compatible else "",'-map', '0:v:0', '-map', '1:a:0','-ab', str(self.audio.get('bitrate')), '-y', self.result_file] if x != ""], stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
@@ -812,18 +838,18 @@ class ytdownload:
         else:
             if not self.audioonly:
                 self.ext = "mp4" if "avc1" in self.manifest_video['CODECS'] else 'webm'
-                logging.debug(f"Downloading video itag {self.manifest_video.get('video_itag')}\nDownloading audio itag {self.manifest_video.get('audio_itag')}")
+                self.logger.debug(f"Downloading video itag {self.manifest_video.get('video_itag')}\nDownloading audio itag {self.manifest_video.get('audio_itag')}")
             else:
                 self.ext = 'm4a'
-                logging.debug(f"Downloading audio itag {self.manifest_video.get('audio_itag')}")
+                self.logger.debug(f"Downloading audio itag {self.manifest_video.get('audio_itag')}")
             self.result_file = f"merged_{int(datetime.now().timestamp())}.{self.ext}"
             self.tempfiles.append(self.result_file)
             await self._manifest_download()
         if self.title and not os.path.exists(self.title):
             os.mkdir(self.title)
-        clear = lambda x: "".join([i for i in x if i not in "\\/:*?<>|()\""])
+        clear = lambda x: "".join([i for i in x if i not in "\\/:*?<>|()\""]).replace('%f', '/')
         give_file = lambda folder, title, date, ext: f"{clear(folder)}/"+clear(title)+date+f".{ext}" if folder else clear(title)+date+f".{ext}"
-        title = self.filename if self.filename else self.all_formats['misc'].get('title')
+        title = self.filename.replace('%s',self.all_formats['misc'].get('title'), 1 ) if self.filename else self.all_formats['misc'].get('title')
         if len(title.encode()) > 250:
             title = title.encode()[:250].decode()
         resultfile = give_file(self.title, title, "", self.ext)
@@ -834,7 +860,7 @@ class ytdownload:
                 os.remove(resultfile)
                 os.rename(self.result_file, resultfile)
             else:
-                resultfile = "".join([x for x in give_file(self.title, self.all_formats['misc'].get('title') if not self.filename else self.filename, str(int(datetime.now().timestamp()), self.ext)) if x not in '"\\/:*?<>|()'])
+                resultfile = give_file(self.title, self.all_formats['misc'].get('title') if not self.filename else self.filename.replace('%s', self.all_formats['misc'].get('title'), 1), str(int(datetime.now().timestamp()), self.ext))
                 os.rename(self.result_file, resultfile)
         self.result_file = resultfile
         if self.start or self.end:
@@ -844,18 +870,26 @@ class ytdownload:
             process = await asyncio.subprocess.create_subprocess_exec("ffmpeg", *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
             self.logger.debug("subprocess command:\nffmpeg " + " ".join(cmd))
             stdout, stderr = await process.communicate()
-            logging.debug(f"STDOUT: \n{stdout.decode() if stdout else None}\nSTDERR: \n{stderr.decode() if stderr else None}")
+            self.logger.debug(f"STDOUT: \n{stdout.decode() if stdout else None}\nSTDERR: \n{stderr.decode() if stderr else None}")
             os.remove(self.result_file)
             os.rename(tempfile, self.result_file)
         if self.mp3audio:
             tempfile = f"tempfile_{int(datetime.now().timestamp())}.mp3"
             process = await asyncio.subprocess.create_subprocess_exec("ffmpeg", *["-i", self.result_file,'-ab', str(self.audio.get('bitrate')) if self.audio.get('bitrate') else str(self.manifest_video.get('audio_bitrate')), tempfile], stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
-            self.logger.debug("subprocess command:\nffmpeg " + " ".join(["-i", self.result_file,'-ab', str(self.audio.get('bitrate')) if self.audio.get('bitrate') else str(self.manifest_video.get('audio_bitrate')), tempfile]))
+            self.logger.debug("subprocess command:\nffmpeg " + " ".join(["-i", self.result_file,'-ab', str(self.audio.get('bitrate')) if self.audio.get('bitrate') else str(self.manifest_video.get('audio_bitrate', 0)), tempfile]))
             stdout, stderr = await process.communicate()
-            logging.debug(f"STDOUT: \n{stdout.decode() if stdout else None}\nSTDERR: \n{stderr.decode() if stderr else None}")
+            self.logger.debug(f"STDOUT: \n{stdout.decode() if stdout else None}\nSTDERR: \n{stderr.decode() if stderr else None}")
             os.remove(self.result_file)
             self.result_file = os.path.splitext(self.result_file)[0] + '.mp3'
-            os.rename(tempfile, self.result_file)
+            try:
+                os.rename(tempfile, self.result_file)
+            except FileExistsError:
+                if self.overwrite:
+                    os.remove(self.result_file)
+                    os.rename(tempfile, self.result_file)
+                else:
+                    self.result_file = give_file(self.title, self.all_formats['misc'].get('title') if not self.filename else self.filename.replace('%s', self.all_formats['misc'].get('title'), 1), str(int(datetime.now().timestamp()), self.ext))
+                    os.rename(tempfile, self.result_file)
         process = await asyncio.subprocess.create_subprocess_exec("ffprobe", *['-i', self.result_file, '-show_streams', '-print_format', 'json', '-v', 'quiet', '-show_format'], stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
         self.logger.debug("subprocess command:\nffprobe " + " ".join(['-i', self.result_file, '-show_streams', '-print_format', 'json', '-v', 'quiet', '-show_format']))
         stdout, stderr = await process.communicate()
@@ -884,8 +918,8 @@ class ytdownload:
         video_urls = []
         audio_urls = []
         if not self.audioonly:
-            async with self.session.get(URL(self.manifest_video['URL'], encoded=True), proxy=self.proxypreset) as r:
-                logging.debug(f"request info: {json.dumps(self.request_to_dict(r.request_info))}")
+            async with self.session.get(URL(self.manifest_video['URL'], encoded=True), ) as r:
+                self.logger.debug(f"request info: {json.dumps(self.request_to_dict(r.request_info, r))}")
                 rtext = await r.text('utf-8')
                 rtext = rtext.split("\n")
                 for url in rtext:
@@ -895,8 +929,8 @@ class ytdownload:
                         video_urls.append(url.split('#EXT-X-MAP:URI="')[1].replace('"', ''))
         temp_file_v = None
         temp_file_a = None
-        async with self.session.get(URL(self.manifest_video['AUDIOLINK'], encoded=True), proxy=self.proxypreset) as r:
-            logging.debug(f"request info: {json.dumps(self.request_to_dict(r.request_info))}")
+        async with self.session.get(URL(self.manifest_video['AUDIOLINK'], encoded=True),  cookies=self.cookies) as r:
+            self.logger.debug(f"request info: {json.dumps(self.request_to_dict(r.request_info, r))}")
             rtext = await r.text('utf-8')
             rtext = rtext.split("\n")
             for url in rtext:
@@ -910,10 +944,10 @@ class ytdownload:
             self.progress = tqdm(total=float(self.manifest_video['FILESIZE'])*1024*1024, unit='iB' ,unit_scale=True)
             await self._manifest_worker(video_urls, temp_file_v)
             self.tempfiles.append(temp_file_v)
-            logging.debug("finished downloading video manifest")
+            self.logger.debug("finished downloading video manifest")
             await self._manifest_worker(audio_urls, temp_file_a)
             self.tempfiles.append(temp_file_a)
-            logging.debug("finished download audio manifest")
+            self.logger.debug("finished download audio manifest")
             self.progress.close()
             compatible = True if 'mp4a' and 'avc1' in self.manifest_video['CODECS'] else False
             audio_bitrate = await asyncio.subprocess.create_subprocess_exec("ffprobe", *['-v', 'quiet', '-print_format', 'json', '-show_format', '-show_streams', '-i', temp_file_a], stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
@@ -922,7 +956,7 @@ class ytdownload:
             audio_bitrate = json.loads(stdout.decode()).get('streams')[0].get('bit_rate')
             self.manifest_video['audio_bitrate'] = audio_bitrate
             args = [x for x in ["-i" ,temp_file_v, "-i" ,temp_file_a ,"-c:v" ,"copy" ,"-c:a" if compatible else "", "copy" if compatible else "", "-ab" ,str(audio_bitrate), "-map", "0:v:0", "-map", "1:a:0" ,"-y" ,self.result_file] if x != ""]
-            logging.debug(f"ffmpeg {' '.join(args)}")
+            self.logger.debug(f"ffmpeg {' '.join(args)}")
             process = await asyncio.subprocess.create_subprocess_exec("ffmpeg", *args, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
             self.logger.debug("subprocess command:\nffmpeg " + " ".join(args))
             stdout, stderr = await process.communicate()
@@ -934,10 +968,10 @@ class ytdownload:
             self.tempfiles.append(temp_file_a)
             self.progress.close()
             os.rename(temp_file_a, self.result_file)
-            audio_bitrate = await asyncio.subprocess.create_subprocess_exec("ffprobe", *['-v', 'quiet', '-print_format', 'json', '-show_format', '-show_streams', '-i', temp_file_a], stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
-            self.logger.debug("subprocess command:\nffprobe " + " ".join(['-v', 'quiet', '-print_format', 'json', '-show_format', '-show_streams', '-i', temp_file_a]))
+            audio_bitrate = await asyncio.subprocess.create_subprocess_exec("ffprobe", *['-v', 'quiet', '-print_format', 'json', '-show_format', '-show_streams', '-i', self.result_file], stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+            self.logger.debug("subprocess command:\nffprobe " + " ".join(['-v', 'quiet', '-print_format', 'json', '-show_format', '-show_streams', '-i', self.result_file]))
             stdout, stderr = await audio_bitrate.communicate()
-            audio_bitrate = json.loads(stdout.decode()).get('streams')[0].get('bit_rate')
+            audio_bitrate = json.loads(stdout.decode()).get('streams', [{}])[0].get('bit_rate')
             self.manifest_video['audio_bitrate'] = audio_bitrate
         for x in [temp_file_a, temp_file_v]:
             try:
@@ -949,36 +983,46 @@ class ytdownload:
             headers = {
                 'range': 'bytes=0-'
             }
-            bad_links_count = 0
-            for link in links:
-                async with self.session.get(URL(link, encoded=True), proxy=self.proxypreset, headers=headers) as r:
-                    logging.debug(f"request info: {json.dumps(self.request_to_dict(r.request_info))}")
+            if self.cookies:
+                headers['cookie'] = self.cookie_str
+            for idx, link in enumerate(links):
+                async with self.session.get(URL(link, encoded=True),  headers=headers) as r:
+                    self.logger.debug(f"request info: {json.dumps(self.request_to_dict(r.request_info, r))}")
                     if r.status not in [200, 206]:
-                        logging.info(f"bad status on manifest download: {r.status}")
-                        bad_links_count += 1
-                        if bad_links_count == 10:
-                            raise self.download_error(f"Issue with downloading form manifest: Status {r.status}. Try again.")
-                    while True:
-                        chunk = await r.content.read(1024)
-                        if not chunk:
-                            break
-                        await f1.write(chunk)
-                        self.progress.update(len(chunk))
+                        self.logger.info(f"Status {r.status} on {idx}{'st' if str(idx)[-1] == '1' else 'nd' if str(idx)[-1] == '2' else 'rd' if str(idx)[-1] == '3' else 'th'}, sleeping 3 seconds then trying again")
+                        await asyncio.sleep(3)
+                        async with self.session.get(URL(link, encoded=True),  headers=headers) as r:
+                            self.logger.debug(f"request info: {json.dumps(self.request_to_dict(r.request_info, r))}")
+                            while True:
+                                chunk = await r.content.read(1024)
+                                if not chunk:
+                                    break
+                                await f1.write(chunk)
+                                self.progress.update(len(chunk))
+                    else:
+                        while True:
+                            chunk = await r.content.read(1024)
+                            if not chunk:
+                                break
+                            await f1.write(chunk)
+                            self.progress.update(len(chunk))
     async def _dash_download(self, filename: str):
         segment_count_pattern = r'Segment-Count: (.*?)\n'
-        async with self.session.get(self.video['url'] + "&sq=0", proxy=self.proxypreset) as r:
-            logging.debug(f"request info: {json.dumps(self.request_to_dict(r.request_info))}")
+        async with self.session.get(self.video['url'] + "&sq=0", ) as r:
+            self.logger.debug(f"request info: {json.dumps(self.request_to_dict(r.request_info, r))}")
             rtext = await r.text("unicode_escape")
-        segments = int(re.findall(segment_count_pattern, rtext)[0].rstrip())
+        segments = int(re.search(segment_count_pattern, rtext).group(1).rstrip())
         self.logger.debug(f"{segments} segments in dash video")
         progress = tqdm(total=int(self.video['contentLength']), unit='iB', unit_scale=True)
         headers = {
             'range': 'bytes=0-'
         }
+        if self.cookies:
+            headers['cookie'] = self.cookie_str
         async with aiofiles.open(filename, 'wb') as f1:
             for i in range(segments):
-                async with self.session.get(self.video['url'] + f"&sq={i}", proxy=self.proxypreset, headers=headers) as r:
-                    logging.debug(f"request info: {json.dumps(self.request_to_dict(r.request_info))}")
+                async with self.session.get(self.video['url'] + f"&sq={i}", headers=headers) as r:
+                    self.logger.debug(f"request info: {json.dumps(self.request_to_dict(r.request_info, r))}")
                     while True:
                         chunk = await r.content.read(1024)
                         if not chunk:
@@ -1022,42 +1066,88 @@ class ytdownload:
     async def _download(self, url: str, filename: str, content_length: int):
         if not self.session or self.session.closed:
             self.session = aiohttp.ClientSession(connector=self._make_connector())
-        headers = {'userAgent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36'}
+        headers = {'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36',
+                   'range': 'bytes=0-'}
         async with aiofiles.open(filename, 'wb') as f1:
             if not content_length:
-                async with self.session.head(url, proxy=self.proxypreset) as headresponse:
-                    logging.debug(f"request info: {json.dumps(self.request_to_dict(headresponse.request_info))}")
-                    content_length = int(headresponse.headers.get('content-length'))
+                async with self.session.get(url, headers=headers) as r:
+                    self.logger.debug(f"request info: {json.dumps(self.request_to_dict(r.request_info, r))}")
+                    content_length = int(r.headers.get('content-length'))
                     self.video['content-length'] = content_length
-            if content_length > (10*1024*1024):
-                await self._chunk_download(url, f1, content_length)
+                    if content_length < 10*1024*1024:
+                        progress = tqdm(total=content_length, unit='iB', unit_scale=True)
+                        self.logger.debug(f"request info: {json.dumps(self.request_to_dict(r.request_info, r))}")
+                        if r.status == 302:
+                            self.logger.debug(f"ratelimited, waiting 5 seconds...")
+                            return
+                        if r.status not in [200, 206]:
+                            self.logger.info(f"bad download, status {Fore.RED}{r.status}{Fore.RESET}, waiting 3 seconds and trying once more")
+                            await asyncio.sleep(3)
+                            async with self.session.get(url,  headers=headers) as r:
+                                self.logger.debug(f"request info: {json.dumps(self.request_to_dict(r.request_info, r))}")
+                                if r.status not in [200, 206]:
+                                    self.logger.info(f"bad download, status {Fore.RED}{r.status}{Fore.RESET}, waiting 3 seconds and trying once more")
+                                    raise self.download_error(f"Error downloading, status: {r.status}")
+                                else:
+                                    while True:
+                                        chunk = await r.content.read(1024)
+                                        if not chunk:
+                                            break
+                                        await f1.write(chunk)
+                                        progress.update(len(chunk))
+                        else:
+                            while True:
+                                chunk = await r.content.read(1024)
+                                if not chunk:
+                                    break
+                                await f1.write(chunk)
+                                progress.update(len(chunk))
+
+
+                        progress.close()
+                    else:
+                        await self._chunk_download(url, f1, content_length)
             else:
-                progress = tqdm(total=content_length, unit='iB', unit_scale=True)
-                headers['range'] =  'bytes=0-'
-                
-                async with self.session.get(url, proxy=self.proxypreset, headers=headers) as r:
-                    logging.debug(f"request info: {json.dumps(self.request_to_dict(r.request_info))}")
-                    if r.status == 302:
-                        self.logger.debug(f"ratelimited, waiting 5 seconds...")
-                        return
-                    if r.status not in [200, 206]:
-                        self.logger.info(f"bad download, status {Fore.RED}{r.status}{Fore.RESET}")
-                        raise self.download_error(f"Error downloading, status: {r.status}")
-                    while True:
-                        chunk = await r.content.read(1024)
-                        if not chunk:
-                            break
-                        await f1.write(chunk)
-                        progress.update(len(chunk))
+                if content_length < 10*1024*1024:
+                    async with self.session.get(url, headers=headers) as r:
+                        self.logger.debug(f"request info: {json.dumps(self.request_to_dict(r.request_info, r))}")
+                        progress = tqdm(total=content_length, unit='iB', unit_scale=True)
+                        if r.status == 302:
+                                self.logger.debug(f"ratelimited, waiting 5 seconds...")
+                                return
+                        if r.status not in [200, 206]:
+                            self.logger.info(f"bad download, status {Fore.RED}{r.status}{Fore.RESET}, waiting 3 seconds and trying once more")
+                            await asyncio.sleep(3)
+                            async with self.session.get(url,  headers=headers) as r:
+                                self.logger.debug(f"request info: {json.dumps(self.request_to_dict(r.request_info, r))}")
+                                if r.status not in [200, 206]:
+                                    self.logger.info(f"bad download, status {Fore.RED}{r.status}{Fore.RESET}, waiting 3 seconds and trying once more")
+                                    raise self.download_error(f"Error downloading, status: {r.status}")
+                                else:
+                                    while True:
+                                        chunk = await r.content.read(1024)
+                                        if not chunk:
+                                            break
+                                        await f1.write(chunk)
+                                        progress.update(len(chunk))
+                        else:
+                            while True:
+                                chunk = await r.content.read(1024)
+                                if not chunk:
+                                    break
+                                await f1.write(chunk)
+                                progress.update(len(chunk))
 
 
-                progress.close()
+                        progress.close()
+                else:
+                    await self._chunk_download(url, f1, content_length)
     async def _chunk_download(self, url: str, fp: aiofiles.threadpool.text.AsyncTextIOWrapper, content_length: int):
-        headers = {'userAgent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36'}
+        headers = {'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36',}
         headers["range"] = "bytes=0-"
         
-        chunk_size = 10 * 1024 * 1024
-        chunks, _ = divmod(content_length, 10*1024*1024)
+        chunk_size = 10 * 1024 * 1024 - 1
+        chunks, _ = divmod(content_length, chunk_size)
         progress = tqdm(total=content_length, unit='iB', unit_scale=True)
         for i in range(0, chunks+1):
             start = i*chunk_size
@@ -1066,8 +1156,8 @@ class ytdownload:
                 headers["range"] = f"bytes={start}-"
 
                 self.logger.debug(f"Sending range request: {headers['range']}")
-                async with self.session.get(url, headers=headers, proxy=self.proxypreset) as r:
-                    logging.debug(f"request info: {json.dumps(self.request_to_dict(r.request_info))}")
+                async with self.session.get(url, headers=headers) as r:
+                    self.logger.debug(f"request info: {json.dumps(self.request_to_dict(r.request_info, r))}")
                     if r.status == 302:
                         self.logger.debug(f"ratelimited, waiting 5 seconds...")
                         return
@@ -1085,15 +1175,15 @@ class ytdownload:
             else:
                 headers["range"] = f"bytes={start}-{end}"
                 self.logger.debug(f"Sending range request: {headers['range']}")
-                async with self.session.get(url, headers=headers, proxy=self.proxypreset) as r:
+                async with self.session.get(url, headers=headers,  cookies=self.cookies) as r:
                     if r.status == 302:
                         self.logger.debug(f"ratelimited, waiting 5 seconds...")
                         await asyncio.sleep(5)
-                        r = await self.session.get(url, proxy=self.proxypreset, headers=headers)
+                        r = await self.session.get(url,  headers=headers, cookies=self.cookies)
                     if r.status not in [200, 206]:
                         self.logger.info(f"bad download, status {Fore.RED}{r.status}{Fore.RESET}")
                         raise self.download_error(f"Failed to download, status: {r.status}")
-                    logging.debug(f"request info: {json.dumps(self.request_to_dict(r.request_info))}")
+                    self.logger.debug(f"request info: {json.dumps(self.request_to_dict(r.request_info, r))}")
                     while True:
                         chunk = await r.content.read(1024)
                         if not chunk:
@@ -1117,15 +1207,15 @@ class ytdownload:
             if value.get('contentLength') and isinstance(value.get('contentLength'), str):
                 continue
             newurl = await self._decipher_url(value.get('signatureCipher'))
-            async with self.session.head(newurl, proxy=self.proxypreset) as r:
-                logging.debug(f"request info: {json.dumps(self.request_to_dict(r.request_info))}")
+            async with self.session.head(newurl, ) as r:
+                self.logger.debug(f"request info: {json.dumps(self.request_to_dict(r.request_info, r))}")
                 self.all_formats['merged_sig'][key]['url'] = newurl
                 self.all_formats['merged_sig'][key]['contentLength'] = r.headers.get('content-length')
         for key, value in temp_all['merged_unsig'].items():
             if value.get('contentLength') and isinstance(value.get('contentLength'), str):
                 continue
-            async with self.session.head(value.get('url'), proxy=self.proxypreset) as r:
-                logging.debug(f"request info: {json.dumps(self.request_to_dict(r.request_info))}")
+            async with self.session.head(value.get('url'), ) as r:
+                self.logger.debug(f"request info: {json.dumps(self.request_to_dict(r.request_info, r))}")
                 self.all_formats['merged_unsig'][key]['contentLength'] = r.headers.get('content-length')
         if self.all_formats['manifest'].get('0'):
             self.logger.debug('extracting manifest info')
@@ -1182,27 +1272,28 @@ class ytdownload:
                 await self._get_video_info()
         else:
             await self._get_video_info()
-    def request_to_dict(self, request: aiohttp.RequestInfo):
+    def request_to_dict(self, request: aiohttp.RequestInfo, response: aiohttp.ClientResponse):
         headers = {}
         for key, value in request.headers.items():
             headers[key] = deepcopy(value)
-        return {'url': str(request.url), 'headers': headers, 'method': request.method}
+        return {'url': str(request.url), 'headers': headers, 'method': request.method, 'status': response.status}
     def _check_disable_web(self, value: dict):
         if self.disable_web:
             return value['source'].lower() != 'web' and value['source'].upper() != 'TVHTML5_SIMPLY_EMBEDDED_PLAYER'
         return True
     async def _rotate_cookies(self):
         import env
-        cookies = {
-            'PREF': 'f6=40000000&f7=4100&tz=Europe.Warsaw&f4=4000000&f5=30000&gl=PL',
-        }
+        # if not self.cookies:
+        #     self.cookies = {
+        #         'PREF': 'f6=40000000&f7=4100&tz=Europe.Warsaw&f4=4000000&f5=30000&gl=PL',
+        #     }
         special = None
         if os.path.exists("cookie_cache.json"):
             with open("cookie_cache.json", "r") as f1:
                 cookie_cache = json.load(f1)
                 if datetime.now() < datetime.fromisoformat(cookie_cache.get("expiry")):
                     special = cookie_cache['special']
-        
+                    self.logger.debug(f"Got special code for rotating cookies from cache")
         headers = {
             'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
             'accept-language': 'en-US,en;q=0.9',
@@ -1225,21 +1316,25 @@ class ytdownload:
             'upgrade-insecure-requests': '1',
             'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
         }
+        if self.cookies:
+            headers['Cookie'] = self.cookie_str
         if not special:
-            async with self.session.get('https://accounts.youtube.com/RotateCookiesPage?origin=https://www.youtube.com&yt_pid=1', headers=headers, cookies=cookies) as r:
+            async with self.session.get('https://accounts.youtube.com/RotateCookiesPage?origin=https://www.youtube.com&yt_pid=1', headers=headers) as r:
+                self.logger.debug(f"request info: {json.dumps(self.request_to_dict(r.request_info, r))}")
                 response = await r.text("utf-8")
                 special = re.search(r"init\(\'([\d\-]+)\',", response)
                 if not special:
-                    raise ConnectionError(f"Please provide a new __Secure-1PSIDTS cookie")
+                    raise ValueError(f"Please provide new cookies")
                 with open("cookie_cache.json", "w") as f1:
                     json.dump({"special": special.group(1), "expiry": (datetime.now()+timedelta(days=1)).isoformat()}, f1)
+                    self.logger.debug("got special cookie rotating code, caching for a day in cookie_cache.json")
                 special = special.group(1)
 
         self.logheaders = {
             'accept': '*/*',
             'accept-language': 'en-US,en;q=0.5',
             'content-type': 'application/json',
-            'Cookie': f"SID={env.SID};HSID={env.HSID};SSID={env.SSID};APISID={env.APISID};SAPISID={env.SAPISID};__Secure-1PSIDTS={env.PSIDTS}",
+            'Cookie': f"SID={env.SID};HSID={env.HSID};SSID={env.SSID};APISID={env.APISID};SAPISID={env.SAPISID};__Secure-1PSIDTS={env.PSIDTS}" if not self.cookies else self.cookie_str,
             'origin': 'https://accounts.youtube.com',
             'priority': 'u=1, i',
             'referer': 'https://accounts.youtube.com/RotateCookiesPage?origin=https://www.youtube.com&yt_pid=1',
@@ -1263,24 +1358,35 @@ class ytdownload:
             special,
             1,
         ]
-        async with self.session.post("https://accounts.youtube.com/RotateCookies", headers=self.logheaders, json=json_data, proxy=self.proxypreset) as r:
+        async with self.session.post("https://accounts.youtube.com/RotateCookies", headers=self.logheaders, json=json_data) as r:
+            self.logger.debug(f"request info: {json.dumps(self.request_to_dict(r.request_info, r))}")
             psidts = r.headers.get("Set-Cookie").split("=")[1].split(";")[0] if r.headers.get("Set-Cookie") else None
             with open("env.py", "r") as f1:
                 env_f = f1.read()
+            if r.status == 401:
+                raise ValueError(f"Provide new cookies!")
             if psidts and r.status == 200:
                 env_f = env_f.replace(env.PSIDTS, psidts)
                 with open("env.py", "w") as f1:
                     f1.write(env_f)
                 self.logger.debug(f"Refreshed cookie!")
                 env.PSIDTS = psidts
+                if self.cookies:
+                    with open("cookies.json", "w") as f1:
+                        cookies_ = self.cookies
+                        for cookies in self.session.cookie_jar:
+                            self.cookies[cookies.key] = cookies.value
+                        json.dump({'new': self.cookies, 'old': cookies_}, f1)
+                        self.logger.info("Cached rotated cookies in cookies.json")
+                    self.cookie_str = ''
+                    for key, value in self.cookies.items():
+                        self.cookie_str += f'{key}={value};'
                 self.logheaders = {
                     'accept': '*/*',
                     'accept-language': 'en-US,en;q=0.5',
                     'content-type': 'application/json',
-                    'Cookie': f"SID={env.SID};HSID={env.HSID};SSID={env.SSID};APISID={env.APISID};SAPISID={env.SAPISID};__Secure-1PSIDTS={env.PSIDTS}",
-                    'origin': 'https://accounts.youtube.com',
+                    'Cookie': f"SID={env.SID};HSID={env.HSID};SSID={env.SSID};APISID={env.APISID};SAPISID={env.SAPISID};__Secure-1PSIDTS={env.PSIDTS}" if not self.cookies else self.cookie_str,
                     'priority': 'u=1, i',
-                    'referer': 'https://accounts.youtube.com/RotateCookiesPage?origin=https://www.youtube.com&yt_pid=1',
                     'sec-ch-ua': '"Brave";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
                     'sec-ch-ua-arch': '"x86"',
                     'sec-ch-ua-bitness': '"64"',
@@ -1299,19 +1405,21 @@ class ytdownload:
             else:
                 self.logger.debug("didnt refresh cookie")
     async def _get_video_info(self):
-        cookies = {
-        "PREF": "f4=4000000&f6=40000000&tz=Europe.Warsaw&f5=30000&f7=100",
-        "CONSENT": "PENDING+915"
-        }
+        import env
+        # if not self.cookies:
+        #     self.cookies = {
+        #     "PREF": "f4=4000000&f6=40000000&tz=Europe.Warsaw&f5=30000&f7=100",
+        #     "CONSENT": "PENDING+915"
+        #     }
         self.video_id = None
         VIDEOIDPATTERN_DEFAULT = r'(?:https?://)?(?:www\.)?(?:m\.)?youtube\.com/watch\?v=([\w-]+)'
         VIDEOIDPATTERN_MOBILE = r'(?:https?://)?(?:www\.)?(?:m\.)?youtu\.be\/([\w-]+)'
         VIDEOIDPATTERN_SHORTS = r'(?:https?://)?(?:www\.)?(?:m\.)?youtube\.com/shorts/([\w-]+)(?:\?feature=[\w]+)?'
         VIDEOIDPATTERN_LIST = [VIDEOIDPATTERN_MOBILE, VIDEOIDPATTERN_DEFAULT, VIDEOIDPATTERN_SHORTS]
         for ptn in VIDEOIDPATTERN_LIST:
-            match = re.findall(ptn, self.link)
+            match = re.search(ptn, self.link)
             if match:
-                self.video_id = match[0]
+                self.video_id = match.group(1)
                 break
         if not self.video_id:
             raise ValueError(f"Couldn't find video id in link {self.link}")
@@ -1334,22 +1442,40 @@ class ytdownload:
             'upgrade-insecure-requests': '1',
             'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36',
         }
-        async with self.session.get(f"https://youtube.com/watch?v={self.video_id}", headers=headers, cookies=cookies, proxy=self.proxypreset) as response:
-            logging.debug(f"request info: {json.dumps(self.request_to_dict(response.request_info))}")
+        if self.cookies:
+            headers['cookie'] = ''
+            if os.path.exists('cookies.json'):
+                with open("cookies.json", "r") as f1:
+                    cookies = json.load(f1)
+                    #if provided cookies are same as old ones, get refreshed new ones
+                    for key, value in cookies['old'].items():
+                        if self.cookies.get(key) != value:
+                            cookies = None
+                            break
+                    if cookies:
+                        self.cookies = cookies['new']
+                        self.logger.debug(f"using new cookies from cookies.json")
+
+            for key, value in self.cookies.items():
+                headers['cookie'] += f'{key}={value};'
+            self.cookie_str = headers['cookie']
+            # await self._rotate_cookies()
+        async with self.session.get(f"https://youtube.com/watch?v={self.video_id}", headers=headers, ) as response:
+            self.logger.debug(f"request info: {json.dumps(self.request_to_dict(response.request_info, response))}")
             response = await response.text("utf-8")
 
         self.logger.debug(f"SENT GET REQUEST TO https://youtube.com/watch?v={self.video_id}")
 
         initialplayerresponsepattern = r'var ytInitialPlayerResponse = (.*?\"nanos\":(?:\d+)}}}})'
-        matches = re.findall(initialplayerresponsepattern, response, re.DOTALL)
+        matches = re.search(initialplayerresponsepattern, response)
         if not matches:
             raise ConnectionError(f"couldn't get the initial response from default youtube site")
-        responsejson: dict = json.loads(matches[0])
+        responsejson: dict = json.loads(matches.group(1))
         basejspattern = r"href=\"(/s/player/(?:.*?)/player_ias\.vflset/(?:.*?)/base\.js)\""
-        matches = re.findall(basejspattern, response)
+        matches = re.search(basejspattern, response)
         if not matches:
             raise FileNotFoundError(f"Couldn't find base.js in page source, maybe fault on my end?")
-        self.basejslink = f"https://youtube.com{re.findall(basejspattern, response)[0]}"
+        self.basejslink = f"https://youtube.com{matches.group(1)}"
         self.logger.debug(f"base.js link: {self.basejslink}")
 
         self.video_unmerged_info = {}
@@ -1366,185 +1492,101 @@ class ytdownload:
         self.using_env = False
         source = 'web'
         self.logger.debug(f"Playability Status: {responsejson['playabilityStatus'].get('status')}")
-        self.logger.debug(f"Other playability status information:\n{json.dumps(responsejson['playabilityStatus'], ensure_ascii=False)}")
+        self.logger.debug(f"Other playability status information:\n{json.dumps(responsejson['playabilityStatus'].get('reason'), ensure_ascii=False)}")
+        if not self.visitor_data:
+            for i in responsejson['responseContext']['serviceTrackingParams']:
+                for j in i['params']:
+                    if j['key'] == 'visitor_data':
+                        self.visitor_data = j['value']
+                        break
+                if self.visitor_data:
+                    break
+        if not self.visitor_data and self.cookies:
+            self.visitor_data = self.cookies.get("VISITOR_PRIVACY_METADATA")
         if responsejson['playabilityStatus'].get('status') == 'LOGIN_REQUIRED':
             self.needlogin = True
             await self._rotate_cookies()
             if self.disable_web:
-                try:
-                    import env
-                    logging.info(f"{Fore.BLUE}LOGIN REQUIRED,{Fore.RESET} will try use credentials")
-                    self.using_env = True
-                    self.logheaders = {
-                        'authority': 'www.youtube.com',
-                        'accept': '*/*',
-                        'accept-language': 'en-US,en;q=0.7',
-                        'authorization': env.authorization,
-                        'content-type': 'application/json',
-                        'Cookie': f"SID={env.SID};HSID={env.HSID};SSID={env.SSID};APISID={env.APISID};SAPISID={env.SAPISID};__Secure_1PSIDTS={env.PSIDTS}",
-                        'origin': 'https://www.youtube.com',
-                        'sec-ch-ua': '"Not/A)Brand";v="99", "Brave";v="115", "Chromium";v="115"',
-                        'sec-ch-ua-mobile': '?0',
-                        'sec-ch-ua-model': '""',
-                        'sec-ch-ua-platform': '"Windows"',
-                        'sec-ch-ua-platform-version': '"10.0.0"',
-                        'sec-fetch-dest': 'empty',
-                        'sec-fetch-mode': 'same-origin',
-                        'sec-fetch-site': 'same-origin',
-                        'sec-gpc': '1',
-                        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36',
-                        'x-goog-authuser': '0',
-                        'x-origin': 'https://www.youtube.com',
-                        'x-youtube-bootstrap-logged-in': 'true',
-                    }
 
-                    logparams = {
-                        'key': "AIzaSyB-63vPrdThhKuerbB2N_l7Kwwcxj6yUA",
-                        'prettyPrint': 'false',
-                    }
+                import env
+                self.logger.info(f"{Fore.BLUE}LOGIN REQUIRED,{Fore.RESET} will try use credentials")
+                self.using_env = True
+                self.logheaders = {
+                    'authority': 'www.youtube.com',
+                    'accept': '*/*',
+                    'accept-language': 'en-US,en;q=0.7',
+                    'authorization': env.authorization,
+                    'content-type': 'application/json',
+                    'Cookie': f"SID={env.SID};HSID={env.HSID};SSID={env.SSID};APISID={env.APISID};SAPISID={env.SAPISID};__Secure_1PSIDTS={env.PSIDTS}" if not self.cookies else self.cookie_str,
+                    'origin': 'https://www.youtube.com',
+                    'sec-ch-ua': '"Not/A)Brand";v="99", "Brave";v="115", "Chromium";v="115"',
+                    'sec-ch-ua-mobile': '?0',
+                    'sec-ch-ua-model': '""',
+                    'sec-ch-ua-platform': '"Windows"',
+                    'sec-ch-ua-platform-version': '"10.0.0"',
+                    'sec-fetch-dest': 'empty',
+                    'sec-fetch-mode': 'same-origin',
+                    'sec-fetch-site': 'same-origin',
+                    'sec-gpc': '1',
+                    'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36',
+                    'x-goog-authuser': '0',
+                    'x-goog-visitor-id': self.visitor_data,
+                    'x-origin': 'https://www.youtube.com',
+                    'x-youtube-bootstrap-logged-in': 'true',
+                }
 
-                    logjson_data = {
-                        'context': {
-                            'client': {
-                                    'clientName': "IOS",
-                                    'clientVersion': '17.33.2', 
-                                    'userAgent': 'com.google.ios.youtube/17.33.2 (iPhone14,3; U; CPU iOS 15_6 like Mac OS X)',
-                                    'deviceModel': 'iPhone14,3',
-                                    'acceptHeader': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-                                    'hl': 'en',
-                                },
-                            'user': {
-                                'lockedSafetyMode': False,
-                            },
+                logparams = {
+                    'key': "AIzaSyB-63vPrdThhKuerbB2N_l7Kwwcxj6yUA",
+                    'prettyPrint': 'false',
+                }
 
-                        },
-                        'videoId': self.video_id,
-                        'playbackContext': {
-                            'contentPlaybackContext': {
-                                'html5Preference': 'HTML5_PREF_WANTS',
+                logjson_data = {
+                    'context': {
+                        'client': {
+                                'clientName': "IOS",
+                                'clientVersion': '17.33.2', 
+                                'userAgent': 'com.google.ios.youtube/17.33.2 (iPhone14,3; U; CPU iOS 15_6 like Mac OS X)',
+                                'deviceModel': 'iPhone14,3',
+                                'acceptHeader': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+                                'hl': 'en',
                             },
+                        'user': {
+                            'lockedSafetyMode': False,
                         },
-                        'racyCheckOk': True,
-                        'contentCheckOk': True,
-                    }
-                    async with self.session.post(
-                        'https://www.youtube.com/youtubei/v1/player',
-                        params=logparams,
-                        headers=self.logheaders,
-                        json=logjson_data, proxy=self.proxypreset
-                    ) as r:         
-                        logging.debug(f"request info: {json.dumps(self.request_to_dict(r.request_info))}")
-                        response = await r.text("utf-8")
-                        responsejson = json.loads(response)
-                    self.logger.debug(f"Playability Status: {responsejson['playabilityStatus'].get('status')}")
-                    self.logger.debug(f"Other playability status information:\n{responsejson['playabilityStatus']}")
-                    if responsejson['playabilityStatus']['status'] == "LOGIN_REQUIRED":
-                        url = quote(f"https://www.youtube.com/watch?v={self.video_id}", safe="")
-                        _params = {
-                            'service': 'youtube',
-                            'uilel': '3',
-                            'passive': 'true',
-                            'continue': f'https://www.youtube.com/signin?action_handle_signin=true&app=desktop&hl=en&next={url}',
-                            'hl': 'en',
-                            'ec': '65620',
-                        }
-                        _headers = {
-                            'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-                            'accept-language': 'en-US,en;q=0.7',
-                            'Cookie': f"SID={env.SID};HSID={env.HSID};SSID={env.SSID};APISID={env.APISID};SAPISID={env.SAPISID};__Secure_1PSIDTS={env.PSIDTS}",
-                            'priority': 'u=0, i',
-                            'referer': 'https://www.youtube.com/',
-                            'sec-ch-ua': '"Brave";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
-                            'sec-ch-ua-arch': '"x86"',
-                            'sec-ch-ua-bitness': '"64"',
-                            'sec-ch-ua-full-version-list': '"Brave";v="131.0.0.0", "Chromium";v="131.0.0.0", "Not_A Brand";v="24.0.0.0"',
-                            'sec-ch-ua-mobile': '?0',
-                            'sec-ch-ua-model': '""',
-                            'sec-ch-ua-platform': '"Windows"',
-                            'sec-ch-ua-platform-version': '"10.0.0"',
-                            'sec-ch-ua-wow64': '?0',
-                            'sec-fetch-dest': 'document',
-                            'sec-fetch-mode': 'navigate',
-                            'sec-fetch-site': 'cross-site',
-                            'sec-fetch-user': '?1',
-                            'sec-gpc': '1',
-                            'upgrade-insecure-requests': '1',
-                            'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-                        }
-                        async with self.session.get('https://accounts.google.com/ServiceLogin', params=_params, headers=_headers,) as r:
-                            print(r.status, r.url, r.headers.get("location"))
-                        async with self.session.post(
-                            'https://www.youtube.com/youtubei/v1/player',
-                            params=logparams,
-                            headers=self.logheaders,
-                            json=logjson_data, proxy=self.proxypreset
-                        ) as r:         
-                            logging.debug(f"request info: {json.dumps(self.request_to_dict(r.request_info))}")
-                            response = await r.text("utf-8")
-                            responsejson = json.loads(response)
-                        self.logger.debug(f"Playability Status: {responsejson['playabilityStatus'].get('status')}")
-                        self.logger.debug(f"Other playability status information:\n{responsejson['playabilityStatus']}")
-                    for key, value in responsejson["videoDetails"].items():
-                        self.other_video_info[key] = value
-                    source = 'IOS'
-                except Exception as e:
-                    self.logger.debug(traceback.format_exc())
-                    self.logger.info(f"{Fore.BLUE}LOGIN REQUIRED.{Fore.RESET} Will try to use TVHTML5_SIMPLY_EMBEDDED_PLAYER to grab info")
-                    json_data = {
-                        "context": {
-                            "client": {
-                                "clientName": "TVHTML5_SIMPLY_EMBEDDED_PLAYER",
-                                "clientVersion": "2.0",
-                                "hl": "en",
-                                "timeZone": "UTC",
-                                "utcOffsetMinutes": 0
-                            },
-                            "thirdParty": {
-                                "embedUrl": "https://www.youtube.com/"
-                            }
+
+                    },
+                    'videoId': self.video_id,
+                    'playbackContext': {
+                        'contentPlaybackContext': {
+                            'html5Preference': 'HTML5_PREF_WANTS',
                         },
-                        "videoId": self.video_id,
-                        "playbackContext": {
-                            "contentPlaybackContext": {
-                                "html5Preference": "HTML5_PREF_WANTS",
-                                "signatureTimestamp": 19828
-                            }
-                        },
-                        "contentCheckOk": True,
-                        "racyCheckOk": True
-                    }
-                    async with self.session.post("https://www.youtube.com/youtubei/v1/player?key=AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8", headers=headers, json=json_data, proxy=self.proxypreset) as response:
-                        logging.debug(f"request info: {json.dumps(self.request_to_dict(response.request_info))}")
-                        response = await response.text("utf-8")
-                        responsejson = json.loads(response)
-                        self.logger.debug(f"Playability Status: {responsejson['playabilityStatus'].get('status')}")
-                        self.logger.debug(f"Other playability status information:\n{responsejson['playabilityStatus']}")
-                        if responsejson['playabilityStatus'].get("status") == "UNPLAYABLE":
-                            raise self.download_error(f"Errored in fetching info: {responsejson['playabilityStatus'].get('reason')}, maybe youtube thinks youre a bot.")
-                        # avaliable_itags = list(map(lambda x: int(x[1].get('itag')), self.video_unmerged_info.items()))
-                        # for index, i in enumerate(responsejson['streamingData']['adaptiveFormats']):
-                        #     if int(i['itag']) in avaliable_itags:
-                        #         continue
-                        #     i['source'] = "TVHTML5_SIMPLY_EMBEDDED_PLAYER"
-                        #     self.video_unmerged_info[str(index)] = i
-                        #     avaliable_itags.append(int(i['itag']))
-                        # avaliable_itags = list(map(lambda x: int(x[1].get('itag')), self.video_merged_info.items()))
-                        # for index, i in enumerate(responsejson['streamingData']['formats']):
-                        #     if int(i['itag']) in avaliable_itags:
-                        #         continue
-                        #     i['source'] = "TVHTML5_SIMPLY_EMBEDDED_PLAYER"
-                        #     self.video_merged_info[str(index)] = i
-                        #     avaliable_itags.append(int(i['itag']))
-                        for key, value in responsejson["videoDetails"].items():
-                            self.other_video_info[key] = value
-                        source = 'TVHTML5_SIMPLY_EMBEDDED_PLAYER'
+                    },
+                    'racyCheckOk': True,
+                    'contentCheckOk': True,
+                }
+                async with self.session.post(
+                    'https://www.youtube.com/youtubei/v1/player',
+                    params=logparams,
+                    headers=self.logheaders,
+                    json=logjson_data, 
+                ) as r:         
+                    self.logger.debug(f"request info: {json.dumps(self.request_to_dict(r.request_info, r))}")
+                    response = await r.text("utf-8")
+                    responsejson = json.loads(response)
+                self.logger.debug(f"Playability Status: {responsejson['playabilityStatus'].get('status')}")
+                self.logger.debug(f"Other playability status information:\n{responsejson['playabilityStatus'].get('reason')}")
+                if responsejson['playabilityStatus']['status'] == "LOGIN_REQUIRED":
+                    raise ValueError("bad cookies, get new ones")
+                for key, value in responsejson["videoDetails"].items():
+                    self.other_video_info[key] = value
+                source = 'IOS'
             else:
                 self.using_env = True
                 import env
                 _headers = {
                     'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
                     'accept-language': 'en-US,en;q=0.7',
-                    'Cookie': f"SID={env.SID};HSID={env.HSID};SSID={env.SSID};APISID={env.APISID};SAPISID={env.SAPISID};__Secure_1PSIDTS={env.PSIDTS}",
+                    'Cookie': f"SID={env.SID};HSID={env.HSID};SSID={env.SSID};APISID={env.APISID};SAPISID={env.SAPISID};__Secure_1PSIDTS={env.PSIDTS}" if not self.cookies else self.cookie_str,
                     'priority': 'u=0, i',
                     'sec-ch-ua': '"Brave";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
                     'sec-ch-ua-arch': '""',
@@ -1563,23 +1605,12 @@ class ytdownload:
                     'upgrade-insecure-requests': '1',
                     'user-agent': 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36',
                 }
-                async with self.session.get(f"https://youtube.com/watch?v={self.video_id}", headers=_headers, proxy=self.proxypreset) as r:
+                async with self.session.get(f"https://youtube.com/watch?v={self.video_id}", headers=_headers, ) as r:
                     response = await r.text(encoding="utf-8")
                     response = response.encode("utf-8").decode("unicode_escape")
                     initialplayerresponsepattern = r'var ytInitialPlayerResponse = (.*?\"adBreakHeartbeatParams\":\"(?:.*?)\"\});</script>'
                     if "Sign in to" in response:
-                        self.logger.debug("Need to sign in to get web source.")
-                        _params = {
-                            'service': 'youtube',
-                            'uilel': '3',
-                            'passive': 'true',
-                            'continue': f'https://www.youtube.com/signin?action_handle_signin=true&app=m&hl=en&next=%2Fwatch%3Fv%3D{self.video_id}',
-                            'hl': 'en',
-                        }
-                        async with self.session.get('https://accounts.google.com/ServiceLogin', headers=_headers, params=_params) as r:
-                            self.logger.debug(f"result url: {r.url}")
-                            response = await r.text(encoding="utf-8")
-                            response = response.encode("utf-8").decode("unicode_escape")
+                        raise ValueError("bad cookies, get new ones")
                     matches = re.search(initialplayerresponsepattern, response, re.DOTALL)
                     with open("matches.txt", "w", encoding="utf-8") as f1:
                         f1.write(response)
@@ -1603,14 +1634,15 @@ class ytdownload:
                 except KeyError:
                     raise self.download_error(f"Failed at getting info: {responsejson['playabilityStatus']}")
                 avaliable_itags = [int(value['itag']) for value in self.video_merged_info.values() if self._check_disable_web(value)]
-                for index, i in enumerate(responsejson['streamingData']['formats']):
-                    if int(i['itag']) in avaliable_itags:
-                        continue
-                    if source == 'web' and self.disable_web:
-                        break
-                    i['source'] = source
-                    self.video_merged_info[str(index)] = i
-                    avaliable_itags.append(int(i['itag']))
+                if responsejson['streamingData'].get('formats'):
+                    for index, i in enumerate(responsejson['streamingData']['formats']):
+                        if int(i['itag']) in avaliable_itags:
+                            continue
+                        if source == 'web' and self.disable_web:
+                            break
+                        i['source'] = source
+                        self.video_merged_info[str(index)] = i
+                        avaliable_itags.append(int(i['itag']))
                 for key, value in responsejson["videoDetails"].items():
                     self.other_video_info[key] = value
                 if self.video_unmerged_info.get("0"):
@@ -1630,22 +1662,22 @@ class ytdownload:
                                 if value.get('content-length'):
                                     continue
                                 newurl = await self._decipher_url(value.get('signatureCipher'))
-                                async with self.session.head(newurl, proxy=self.proxypreset) as r:
-                                    logging.debug(f"request info: {json.dumps(self.request_to_dict(r.request_info))}")
+                                async with self.session.head(newurl, ) as r:
+                                    self.logger.debug(f"request info: {json.dumps(self.request_to_dict(r.request_info, r))}")
                                     self.video_merged_info[key]['contentLength'] = r.headers.get('content-length')
                                     self.video_merged_info[key]['url'] = newurl
 
                         self.all_formats['merged_sig'] = self.video_merged_info
                         self.sortdictbysize("merged_unsig")
                     elif self.video_merged_info["0"].get("url"):
-                        self.logger.debug("found merged unsignatured formats from web response")
+                        self.logger.debug(f"found merged unsignatured formats from {source} response")
                         for key, value in deepcopy(self.video_merged_info).items():
                             if value.get('content-length'):
                                 continue
                             if not self.expire:
                                 self.expire = datetime.fromtimestamp(int(re.findall(r"expire=(\d+)", value.get('url'))[0]))
-                            async with self.session.head(value.get('url'), proxy=self.proxypreset) as r:
-                                logging.debug(f"request info: {json.dumps(self.request_to_dict(r.request_info))}")
+                            async with self.session.head(value.get('url'), ) as r:
+                                self.logger.debug(f"request info: {json.dumps(self.request_to_dict(r.request_info, r))}")
                                 self.video_merged_info[key]['contentLength'] = r.headers.get('content-length')
                         self.all_formats['merged_unsig'] = self.video_merged_info
                         self.sortdictbysize("merged_unsig")
@@ -1692,8 +1724,8 @@ class ytdownload:
                             if value.get('content-length'):
                                 continue
                             newurl = await self._decipher_url(value.get('signatureCipher'))
-                            async with self.session.head(newurl, proxy=self.proxypreset) as r:
-                                logging.debug(f"request info: {json.dumps(self.request_to_dict(r.request_info))}")
+                            async with self.session.head(newurl, ) as r:
+                                self.logger.debug(f"request info: {json.dumps(self.request_to_dict(r.request_info, r))}")
                                 self.video_merged_info[key]['contentLength'] = r.headers.get('content-length')
                                 self.video_merged_info[key]['url'] = newurl
 
@@ -1706,8 +1738,8 @@ class ytdownload:
                             continue
                         if not self.expire:
                             self.expire = datetime.fromtimestamp(int(re.findall(r"expire=(\d+)", value.get('url'))[0]))
-                        async with self.session.head(value.get('url'), proxy=self.proxypreset) as r:
-                            logging.debug(f"request info: {json.dumps(self.request_to_dict(r.request_info))}")
+                        async with self.session.head(value.get('url'), ) as r:
+                            self.logger.debug(f"request info: {json.dumps(self.request_to_dict(r.request_info, r))}")
                             self.video_merged_info[key]['contentLength'] = r.headers.get('content-length')
                     self.all_formats['merged_unsig'] = self.video_merged_info
                     self.sortdictbysize("merged_unsig")
@@ -1721,26 +1753,17 @@ class ytdownload:
 
         self.logger.debug(f"Starting API requests")
         headers = {
-        'authority': 'www.youtube.com',
-        'accept': '*/*',
-        'accept-language': 'en-US,en;q=0.7',
-        'content-type': 'application/json',
-        'origin': 'https://www.youtube.com',
-        'referer': self.link, 
-        'sec-ch-ua': '"Not/A)Brand";v="99", "Brave";v="115", "Chromium";v="115"',
-        'sec-ch-ua-mobile': '?0',
-        'sec-ch-ua-model': '""',
-        'sec-ch-ua-platform': '"Windows"',
-        'sec-ch-ua-platform-version': '"10.0.0"',
-        'sec-fetch-dest': 'empty',
-        'sec-fetch-mode': 'cors',
-        'sec-fetch-site': 'same-origin',
-        'sec-gpc': '1',
-        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36',
-        'x-goog-authuser': '0',
-        'x-origin': 'https://www.youtube.com',
-        'x-youtube-bootstrap-logged-in': 'true',
+            'accept': '*/*',
+            'accept-language': 'en-US,en;q=0.9',
+            'content-type': 'application/json',
+            'origin': 'https://www.youtube.com',
+            'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36',
+            'x-goog-visitor-id': self.visitor_data,
         }
+        if self.cookies:
+            headers['cookie'] = self.cookie_str
+        if self.needlogin or self.cookies:
+            headers['authorization'] = env.authorization
         clients: dict ={'IOS': {'clientVersion': "19.45.4", 
                                 'userAgent': "com.google.ios.youtube/19.45.4 (iPhone16,2; U; CPU iOS 18_1_0 like Mac OS X;)",
                                 'apikey': 'AIzaSyB-63vPrdThhKuerbB2N_l7Kwwcxj6yUA',
@@ -1748,7 +1771,7 @@ class ytdownload:
                         'XBOXONEGUIDE': {'clientVersion': '1.0',
                                         'userAgent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; Xbox; Xbox One) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/46.0.2486.0 Safari/537.36 Edge/13.10553',
                                         'apikey': 'AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8'},
-                        "TVHTML5_SIMPLY_EMBEDDED_PLAYER": {'clientVersion': '2.0',
+                        "TVHTML5": {'clientVersion': '7.20241201.18.00',
                                         'userAgent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36',
                                         'apikey': 'AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8'},
                         "WEB": {'clientVersion': '2.20231030.04.00',
@@ -1756,7 +1779,6 @@ class ytdownload:
                                         'apikey': 'AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8'}}
 
         api_responses = {}
-        temp_json = None
         for key, value in clients.items():
             self.logger.debug(f'downloading {key} api')
             json_data = {
@@ -1786,34 +1808,6 @@ class ytdownload:
                     del json_data['context']['client']['deviceModel']
                 except:
                     pass
-            if 'TVHTML5_SIMPLY_EMBEDDED_PLAYER' in key and self.needlogin:
-                temp_json = {
-                "context": {
-                    "client": {
-                        "clientName": "TVHTML5_SIMPLY_EMBEDDED_PLAYER",
-                        "clientVersion": "2.0",
-                        "hl": "en",
-                        "timeZone": "UTC",
-                        "utcOffsetMinutes": 0
-                    },
-                    "thirdParty": {
-                        "embedUrl": "https://www.youtube.com/"
-                    }
-                },
-                "videoId": self.video_id,
-                "playbackContext": {
-                    "contentPlaybackContext": {
-                        "html5Preference": "HTML5_PREF_WANTS",
-                        "signatureTimestamp": 19844
-                    }
-                },
-                "contentCheckOk": True,
-                "racyCheckOk": True
-            }
-            elif self.needlogin:
-                temp_json = None
-            elif 'TVHTML5_SIMPLY_EMBEDDED_PLAYER' in key and not self.needlogin:
-                continue
             params = {
             'key': value.get('apikey'),
             'prettyPrint': 'false',
@@ -1821,12 +1815,11 @@ class ytdownload:
             async with self.session.post(
             'https://www.youtube.com/youtubei/v1/player/',
             params=params,
-            json=json_data if not temp_json else temp_json, 
-            cookies=cookies,
-            headers=self.logheaders if self.needlogin and self.using_env else headers,
-            proxy=self.proxypreset
+            json=json_data, 
+            headers=headers,
+            
             ) as apiresponse:
-                logging.debug(f"request info: {json.dumps(self.request_to_dict(apiresponse.request_info))}")
+                self.logger.debug(f"request info: {json.dumps(self.request_to_dict(apiresponse.request_info, apiresponse))}")
                 apiresponse = await apiresponse.text("utf-8")
                 apiresponse = json.loads(apiresponse)
                 api_responses[key] = apiresponse
@@ -1849,7 +1842,7 @@ class ytdownload:
                         self.all_formats['captions'] = i['baseUrl']
                         
             if value['streamingData'].get('formats'):
-                if value['streamingData']['formats'][0].get('url'):
+                if value['streamingData']['formats'][0].get('url') and not 'TVHTML5' in key:
                     self.logger.debug(f"found merged unsig from {key}")
                     for i in range(len(value.get('streamingData').get('formats'))):
                         avaliable_itags = [int(value['itag']) for value in self.all_formats['merged_unsig'].values() if self._check_disable_web(value)]
@@ -1857,8 +1850,8 @@ class ytdownload:
                             continue
                         if self.premerged:
                             self.logger.debug("adding content lengths to merged formats")
-                            async with self.session.head(value.get('streamingData').get('formats')[i].get('url'), proxy=self.proxypreset) as mergedresponse:
-                                logging.debug(f"request info: {json.dumps(self.request_to_dict(mergedresponse.request_info))}")
+                            async with self.session.head(value.get('streamingData').get('formats')[i].get('url'), ) as mergedresponse:
+                                self.logger.debug(f"request info: {json.dumps(self.request_to_dict(mergedresponse.request_info, mergedresponse))}")
                                 content_length = mergedresponse.headers.get("content-length")
                                 if content_length:
                                     value.get('streamingData').get('formats')[i]['contentLength'] = int(content_length)
@@ -1875,8 +1868,8 @@ class ytdownload:
                             self.logger.debug("adding content lengths to merged formats")
                             url = await self._decipher_url(value.get('streamingData').get('formats')[i].get('signatureCipher'))
                             value.get('streamingData').get('formats')[i]['url'] = url
-                            async with self.session.head(url, proxy=self.proxypreset) as mergedresponse:
-                                logging.debug(f"request info: {json.dumps(self.request_to_dict(mergedresponse.request_info))}")
+                            async with self.session.head(url, ) as mergedresponse:
+                                self.logger.debug(f"request info: {json.dumps(self.request_to_dict(mergedresponse.request_info, mergedresponse))}")
                                 content_length = mergedresponse.headers.get("content-length")
                                 if content_length:
                                     value.get('streamingData').get('formats')[i]['contentLength'] = int(content_length)
@@ -1884,7 +1877,7 @@ class ytdownload:
                         self.all_formats['merged_sig'][str(i)] = value.get('streamingData').get('formats')[i]
                     self.sortdictbysize('merged_sig')
             if value['streamingData'].get('adaptiveFormats'):
-                if value['streamingData']['adaptiveFormats'][0].get('url'):
+                if value['streamingData']['adaptiveFormats'][0].get('url') and not 'TVHTML5' in key:
                     self.logger.debug(f"found unmerged unsig in {key}")
                     for i in range(len(value['streamingData']['adaptiveFormats'])):
                         avaliable_itags = [int(value['itag']) for value in self.all_formats['unmerged_unsig'].values() if self._check_disable_web(value)]
@@ -1911,6 +1904,8 @@ class ytdownload:
                 self.logger.debug(f"{key} is not avaliable")
         if not self.expire:
             for ftype, baloney in self.all_formats.items():
+                if not isinstance(baloney, dict):
+                    continue
                 for key, value in baloney.items():
                     if not isinstance(value, dict):
                         continue
@@ -1934,15 +1929,12 @@ class ytdownload:
         if self._decipher == False:
             return ciphered_url
         if not unciphered:
-            secondfunction = self.functions.get('secondfunction')
-            wholefunctionsig = self.functions.get('wholefunctionsig')
-            functionname = self.functions.get('functioname')
-            thirdfunction = self.functions.get('thirdfunction')
-            thirdfunctionname = self.functions.get('thirdfunctionname')
+            func_name = self.functions.get('function_name')
+            js_text = self.js_text
             ciphered_url = unquote(ciphered_url)
             signature = ciphered_url.split('https')[0].replace('s=', '').replace('&sp=sig&url=', '')
             url = unquote('https' + ciphered_url.split('https')[1])
-            decipher_js_script = f"\n\n{secondfunction}\n\n{wholefunctionsig}\nconsole.log({functionname}('{signature}'))"
+            decipher_js_script = js_text + f'console.log({func_name}("{signature}"))'
             if not os.path.exists('videoinfo'):
                 os.mkdir('videoinfo')
             async with aiofiles.open("videoinfo/deciphersignature.js", "w") as f1:
@@ -1953,83 +1945,101 @@ class ytdownload:
                 raise self.missing_node(f"Node.js is missing, install it!\n{stderr.decode()}")
             result = await asyncio.create_subprocess_exec('node',  'videoinfo/deciphersignature.js', stdout=asyncio.subprocess.PIPE)
             stdout, _ = await result.communicate()
-            deciphered = stdout.decode('utf-8')
-            newurl = url + '&sig=' + deciphered
+            deciphered = stdout.decode('utf-8').strip()
+            self.logger.debug(f"deciphered {signature} -> {deciphered} with function {func_name}")
+            newurl = url + '&sig=' + (deciphered)
             headers = {
             'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
             'accept-language': 'en-US,en;q=0.7',
             'cache-control': 'max-age=0',
             'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36',
             }
+            if self.cookies:
+                headers['cookie'] = self.cookie_str
             if self.check_decipher:
                 self.logger.debug("checking if deciphering worked")
-                async with self.session.head(newurl, headers=headers, proxy=self.proxypreset) as r:
-                    logging.debug(f"request info: {json.dumps(self.request_to_dict(r.request_info))}")
+                async with self.session.head(newurl, headers=headers, ) as r:
+                    self.logger.debug(f"request info: {json.dumps(self.request_to_dict(r.request_info, r))}")
                     if r.status == 302:
                         self.logger.debug("rate limted, waiting 5 seconds")
                         await asyncio.sleep(5)
-                        async with self.session.head(newurl, headers=headers, proxy=self.proxypreset) as r:
-                            logging.debug(f"request info: {json.dumps(self.request_to_dict(r.request_info))}")
+                        async with self.session.head(newurl, headers=headers, ) as r:
+                            self.logger.debug(f"request info: {json.dumps(self.request_to_dict(r.request_info, r))}")
                     if r.status not in [200, 206]:
                         self.logger.debug(f"url not successfully deciphered, \n  {newurl}\ncode {r.status}")
-        # if  unciphered or ("&n=" in newurl):
-        #     if unciphered:
-        #         newurl = unquote(ciphered_url)
-        #     nparam = newurl.split("&n=")[1] if len(newurl.split("&n=")) > 1 else None
-        #     if not nparam:
-        #         return ciphered_url
-        #     nparam = nparam.split("&")[0]
-        #     thirdfunction = self.functions.get('thirdfunction')
-        #     thirdfunctionname = self.functions.get('thirdfunctionname')
-        #     decipher_js_script = f'{thirdfunction}\nconsole.log({thirdfunctionname}("{nparam}"))'
-        #     async with aiofiles.open("videoinfo/deciphersignature.js", "w") as f1:
-        #         await f1.write(decipher_js_script)
-        #     result = await asyncio.create_subprocess_exec('node',  'videoinfo/deciphersignature.js', stdout=asyncio.subprocess.PIPE)
-        #     stdout, _ = await result.communicate()
-        #     deciphered = stdout.decode('utf-8')
-        #     self.logger.debug(f"deciphered n param \n {nparam} -> {deciphered}")
-        #     newurl = newurl.replace(nparam, deciphered)
-        #     newurl = "".join(newurl).strip().replace('\n', '')
+        if  unciphered or ("&n=" in newurl):
+            if unciphered:
+                newurl = unquote(ciphered_url)
+            nparam = newurl.split("&n=")[1] if len(newurl.split("&n=")) > 1 else None
+            if not nparam:
+                return ciphered_url
+            nparam = nparam.split("&")[0]
+            thirdfunctionname = self.functions.get('n_param_function_name')
+            js_text = self.js_text
+            js_text += f"console.log({thirdfunctionname}('{nparam}'))"
+            async with aiofiles.open("videoinfo/deciphersignature.js", "w") as f1:
+                await f1.write(js_text)
+            result = await asyncio.create_subprocess_exec('node',  'videoinfo/deciphersignature.js', stdout=asyncio.subprocess.PIPE)
+            stdout, _ = await result.communicate()
+            deciphered = stdout.decode('utf-8').strip()
+            self.logger.debug(f"deciphered n param \n {nparam} -> {deciphered}")
+            newurl = newurl.replace(nparam, deciphered)
+            newurl = "".join(newurl).strip().replace('\n', '')
         return newurl
 
     async def _get_decipher_functions(self):
         if self.got_functions:
             return
-        async with self.session.get(self.basejslink, proxy=self.proxypreset) as response:
-            logging.debug(f"request info: {json.dumps(self.request_to_dict(response.request_info))}")
+        headers = {
+            'x-goog-visitor-id': self.visitor_data,
+        }
+        if self.cookies:
+            headers = {
+                'cookie': self.cookie_str
+            }
+        async with self.session.get(self.basejslink,  headers=headers) as response:
+            self.logger.debug(f"request info: {json.dumps(self.request_to_dict(response.request_info, response))}")
             basejstext = await response.text("utf-8")
-        sigpattern = r'((.*?)=function\(a\)(.*?)return a.join\(\"\"\)\}\;)'
-        sigmatches = re.search(sigpattern, basejstext[basejstext.find('return a.join("")};')-300: basejstext.find('return a.join("")};') + len('return a.join("")};')])
+            if self.verbose:
+                self.logger.debug(f"Written base.js to base.js")
+                with open('base.js', "w") as f1:
+                    f1.write(basejstext)
+        sigpattern = r'(([\w$_]*?)=function\(\w\)\{\w=\w.split\(\"\"\)(.*?)return \w\.join\(\"\"\)\}\;)'
+        sigmatches = re.search(sigpattern, basejstext)
         if not sigmatches:
             self._decipher = False
             self.logger.debug(f"Couldnt fetch deciphering functions")
-            secondfunction = None
-            wholefunctionsig = None
-            functionname = None
         else:
             self._decipher = True
-            functionname = sigmatches[0][1]
-            self.logger.debug(f"found first function, name: {functionname}")
-            wholefunctionsig = sigmatches[0][0]
-            self.logger.debug(f"whole function: \n{wholefunctionsig}")
-            secfunctionpattern = r';(.*?)\.(.*?)\(a'
-            secondfunctionname = re.findall(secfunctionpattern, wholefunctionsig)[0][0]
-            self.logger.debug(f"found second function, name: {secondfunctionname}")
-            secondfunction = re.findall(fr'(var {re.escape(secondfunctionname)}=([\s\S]*?));var', basejstext[basejstext.find(f'var {secondfunctionname}=')-50:basejstext.find(f'var {secondfunctionname}=')+len(f'var {secondfunctionname}=') + 200])[0][0]
-            self.logger.debug(f"whole function: \n{secondfunction}")
-            thirdfunctionpattern = r'((.*?)=function\(a\)\{var b=([\s\S]*?)return b.join\(\"\"\)};)'
-            matches = re.findall(thirdfunctionpattern, basejstext[basejstext.find('return b.join("")};')-8000:basejstext.find('return b.join("")};')+len('return b.join("")};')])
-            thirdfunction = matches[0][0]
-            thirdfunctionname = matches[0][1]
-            self.logger.debug(f"found third function, name: {thirdfunction}")    
-            self.functions = {'secondfunction': secondfunction, 'wholefunctionsig': wholefunctionsig, 
-                                    'functioname': functionname, 'thirdfunction': thirdfunction, 
-                                    'thirdfunctionname': thirdfunctionname}
+            func_str = sigmatches.group(0)
+            func_name = sigmatches.group(2)
+            additional_func_str = sigmatches.group(3)
+            func_names_pattern= r"([\w$_]+)\.(.*?)\((?:.*?)\)"
+            func_names = re.findall(func_names_pattern, additional_func_str)
+            other_functions = set()
+            temp = ""
+            for j, i in func_names:
+                temp = j
+                other_funcs = re.search(i + r":function(?:.*?)\{(?:.*?)\}", basejstext)
+                other_functions.add(other_funcs.group())
+            self.js_text = ""
+            for i in other_functions:
+                self.js_text += i.replace(':', '=', 1) + "\n"
+            self.js_text += func_str.replace(temp + '.', '') + "\n"
+            proto_n_param_pat = r"\(\w=([\w$]+)\[\d+\]\(\w+\),\w+.set"
+            proto_n = re.search(proto_n_param_pat, basejstext).group(1)
+            n_func_name_pat = fr"var {re.escape(proto_n)}=\[(.*?)\]"
+            n_func_name = re.search(n_func_name_pat, basejstext).group(1)
+            n_param_pat = re.escape(n_func_name) + r"=function\(\w\)\{var \w=(?:[\s\S]*?)return \w\.join\(\"\"\)\}"
+            n_param_code = re.search(n_param_pat, basejstext).group()
+            n_param_code = re.sub(r"if\(typeof \S+===\"undefined\"\)return \w+;", ";", n_param_code)
+            self.js_text += n_param_code + "\n"
             self.got_functions = True
+            self.functions = {"function_name": func_name, "n_param_function_name": n_func_name}
     
     async def _extract_manifest(self, hls_manifest_url):
-        async with self.session.get(hls_manifest_url, proxy=self.proxypreset) as r:
-            logging.debug(f"request info: {json.dumps(self.request_to_dict(r.request_info))}")
+        async with self.session.get(hls_manifest_url,  cookies=self.cookies) as r:
+            self.logger.debug(f"request info: {json.dumps(self.request_to_dict(r.request_info, r))}")
             manifestresponse = await r.text("utf-8")
         entries = manifestresponse.split('#EXT-X-STREAM-INF:')[1:]
         audios = manifestresponse.split('#EXT-X-STREAM-INF:')[0]
@@ -2105,17 +2115,29 @@ class ytdownload:
         if not self.session:
             self.session = aiohttp.ClientSession(connector=self._make_connector())
         return self
-    async def __aexit__(self, exc_type, exc_value, traceback):
-        self.logger.debug(f"{exc_type}, {exc_value}, {traceback}")
+    async def __aexit__(self, exc_type, exc_value, trcbck):
+        if exc_type:
+            self.logger.debug(traceback.format_exception(exc_type, exc_value, trcbck))
+        if self.cookies:
+            cookies = self.cookies
+            for cookies_ in self.session.cookie_jar:
+                cookies[cookies_.key] = cookies_.value
+            with open("cookies.json", "w") as f1:
+                cookies = self.cookies
+                json.dump({'new': cookies, 'old': self.cookies}, f1)
+                self.logger.info("Cached rotated cookies in cookies.json")
         if self.session:
             await self.session.close()
         if self.progress:
             self.progress.close()
+
     def __enter__(self):
-        return self
+        raise TypeError("enter with `async with`")
     def __exit__(self, exc_type, exc_val, exc_tb):
         if self.progress:
             self.progress.close()
+        if exc_type:
+            self.logger.debug(traceback.format_exception(exc_type, exc_val, exc_tb))
         if self.error:
             if hasattr(self, "tempfiles") and self.tempfiles:
                 for file in self.tempfiles:
@@ -2124,6 +2146,18 @@ class ytdownload:
                     except:
                         pass
         return None
+async def main(kwargs: dict):
+    start = datetime.now()
+    async with ytdownload(**kwargs) as the:
+        logging.debug(f"used arguments: \n{json.dumps(kwargs, indent=4)}")
+        result = await the.download()
+        finish=datetime.now()
+        duration = finish-start
+        print(f"it took {int(duration.total_seconds()//60):02}:{int(duration.total_seconds()%60):02}")
+        if not isinstance(the.table, prettytable.PrettyTable):
+            print(json.dumps(result, indent=4, ensure_ascii=False))
+        else:
+            print(the.table)
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description='download youtube videos in different ways, file sizes')
@@ -2140,7 +2174,7 @@ if __name__ == "__main__":
     parser.add_argument('--mp3audio', '-mp3',action='store_true',default=False, help='when downloading audio only, whether to convert it to mp3')
     parser.add_argument('--itag', '-i', type=int, help='download that specific itag and automatically pair audio to it')
     parser.add_argument("--onlyitag", "-oi", action="store_true", help="whether to only download the itag provided")
-    parser.add_argument('--file-name', "-f", type=str, help='set output filename')
+    parser.add_argument('--filename', "-f", type=str, help='set output filename')
     parser.add_argument('--start', '-st', type=str, help='at what timestamp should the video start? MM:SS or HH:MM:SS')
     parser.add_argument('--end', '-e', type=str, help='at what timestamp should the video end? MM:SS or HH:MM:SS')
     parser.add_argument('--overwrite', '-ow', action='store_false', default=True, help='overwrites video if a video with the same title already exists')
@@ -2148,14 +2182,4 @@ if __name__ == "__main__":
     parser.add_argument("--proxy", type=str, help="use proxy for all connections")
     args = parser.parse_args()
     kwargs = vars(args)
-    start = datetime.now()
-    with ytdownload(**kwargs) as the:
-        logging.debug(f"used arguments: \n{json.dumps(kwargs, indent=4)}")
-        result = asyncio.run(the.download())
-        finish=datetime.now()
-        duration = finish-start
-        print(f"it took {int(duration.total_seconds()//60):02}:{int(duration.total_seconds()%60):02}")
-        if not isinstance(the.table, prettytable.PrettyTable):
-            print(json.dumps(result, indent=4))
-        else:
-            print(the.table)
+    asyncio.run(main(kwargs))
