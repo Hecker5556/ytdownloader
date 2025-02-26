@@ -1146,7 +1146,7 @@ class ytdownload:
         headers = {'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36',}
         headers["range"] = "bytes=0-"
         
-        chunk_size = 10 * 1024 * 1024 - 1
+        chunk_size = 9999999
         chunks, _ = divmod(content_length, chunk_size)
         progress = tqdm(total=content_length, unit='iB', unit_scale=True)
         for i in range(0, chunks+1):
