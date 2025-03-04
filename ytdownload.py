@@ -985,6 +985,7 @@ class ytdownload:
             }
             if self.cookies:
                 headers['cookie'] = self.cookie_str
+            errors = 0
             for idx, link in enumerate(links):
                 async with self.session.get(URL(link, encoded=True),  headers=headers) as r:
                     self.logger.debug(f"request info: {json.dumps(self.request_to_dict(r.request_info, r))}")
@@ -992,6 +993,10 @@ class ytdownload:
                         self.logger.info(f"Status {r.status} on {idx}{'st' if str(idx)[-1] == '1' else 'nd' if str(idx)[-1] == '2' else 'rd' if str(idx)[-1] == '3' else 'th'}, sleeping 3 seconds then trying again")
                         await asyncio.sleep(3)
                         async with self.session.get(URL(link, encoded=True),  headers=headers) as r:
+                            if r.status not in [200, 206]:
+                                errors += 1
+                                if errors == 3:
+                                    raise self.download_error(f"Failed to download from manifest link to {filename}")
                             self.logger.debug(f"request info: {json.dumps(self.request_to_dict(r.request_info, r))}")
                             while True:
                                 chunk = await r.content.read(1024)
@@ -1145,8 +1150,8 @@ class ytdownload:
     async def _chunk_download(self, url: str, fp: aiofiles.threadpool.text.AsyncTextIOWrapper, content_length: int):
         headers = {'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36',}
         headers["range"] = "bytes=0-"
-        
-        chunk_size = 9999999
+        from random import randint
+        chunk_size = randint(9*1024*1024, 10*1024*1024)
         chunks, _ = divmod(content_length, chunk_size)
         progress = tqdm(total=content_length, unit='iB', unit_scale=True)
         for i in range(0, chunks+1):
@@ -1175,15 +1180,15 @@ class ytdownload:
             else:
                 headers["range"] = f"bytes={start}-{end}"
                 self.logger.debug(f"Sending range request: {headers['range']}")
-                async with self.session.get(url, headers=headers,  cookies=self.cookies) as r:
+                async with self.session.get(url, headers=headers) as r:
+                    self.logger.debug(f"request info: {json.dumps(self.request_to_dict(r.request_info, r))}")
                     if r.status == 302:
                         self.logger.debug(f"ratelimited, waiting 5 seconds...")
                         await asyncio.sleep(5)
-                        r = await self.session.get(url,  headers=headers, cookies=self.cookies)
+                        r = await self.session.get(url,  headers=headers)
                     if r.status not in [200, 206]:
                         self.logger.info(f"bad download, status {Fore.RED}{r.status}{Fore.RESET}")
                         raise self.download_error(f"Failed to download, status: {r.status}")
-                    self.logger.debug(f"request info: {json.dumps(self.request_to_dict(r.request_info, r))}")
                     while True:
                         chunk = await r.content.read(1024)
                         if not chunk:
