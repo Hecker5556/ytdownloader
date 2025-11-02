@@ -1212,6 +1212,8 @@ class ytdownload:
             if value.get('contentLength') and isinstance(value.get('contentLength'), str):
                 continue
             newurl = await self._decipher_url(value.get('signatureCipher'))
+            if newurl == value.get('signatureCipher'):
+                continue
             async with self.session.head(newurl, ) as r:
                 self.logger.debug(f"request info: {json.dumps(self.request_to_dict(r.request_info, r))}")
                 self.all_formats['merged_sig'][key]['url'] = newurl
@@ -1235,7 +1237,7 @@ class ytdownload:
         async with aiofiles.open(f"videoinfo/video-{self.video_id}.json", "w") as f1:
             self.all_formats['misc'] = self.other_video_info
             await f1.write(json.dumps(self.all_formats, indent=4))
-        sorted_entries = sorted(all_entries, key=lambda x: round(int(x.get('contentLength'))/(1024*1024), 2) if x.get('contentLength') else float(x.get('FILESIZE')), reverse=False)
+        sorted_entries = sorted(all_entries, key=lambda x: round(int(x.get('contentLength'))/(1024*1024), 2) if x.get('contentLength') else float(x.get('FILESIZE', 0.0)), reverse=False)
         for entrydata in sorted_entries:
             itag = entrydata.get('itag') if entrydata.get('itag') else entrydata.get('URL').split('itag/')[1].split('/')[0]
             formattype = entrydata.get('mimeType', 'video/mp4').split(';')[0]
