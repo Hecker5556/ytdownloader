@@ -1478,7 +1478,7 @@ class ytdownload:
         if not matches:
             raise ConnectionError(f"couldn't get the initial response from default youtube site")
         responsejson: dict = json.loads(matches.group(1))
-        basejspattern = r"href=\"(/s/player/(?:.*?)/player_ias\.vflset/(?:.*?)/base\.js)\""
+        basejspattern = r"href=\"(/s/player/(?:.*?)/player_(?:\w+)\.vflset/(?:.*?)/base\.js)\""
         matches = re.search(basejspattern, response)
         if not matches:
             raise FileNotFoundError(f"Couldn't find base.js in page source, maybe fault on my end?")
