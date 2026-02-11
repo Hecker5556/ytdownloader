@@ -279,9 +279,9 @@ class ytdownload:
             if link:
                 self.link = None
                 for ptn in LINKPATTERNLIST:
-                    match = re.findall(ptn, link)
+                    match = await asyncio.to_thread(re.search, ptn, link)
                     if match:
-                        self.link = match[0]
+                        self.link = match.group(0)
                         break
                 if not self.link:
                     raise ValueError(f"Provided link isn't valid")
@@ -409,7 +409,7 @@ class ytdownload:
             self.session = aiohttp.ClientSession(connector=self._make_connector())
         async with self.session.post('https://www.youtube.com/youtubei/v1/search', headers=headers, params=params, json=json_data, cookies=self.cookies) as r:
             response = await r.text('utf-8')
-            responsejson = json.loads(response)
+            responsejson = await asyncio.to_thread(json.loads, response)
         videos = {}
         for result in responsejson['contents']['twoColumnSearchResultsRenderer']['primaryContents']['sectionListRenderer']['contents'][0]['itemSectionRenderer']['contents']:
             if result.get('videoRenderer'):
@@ -468,7 +468,7 @@ class ytdownload:
             self.session = aiohttp.ClientSession(connector= self._make_connector())
         async with self.session.post('https://www.youtube.com/youtubei/v1/next', params=params, headers=headers, json=json_data,  cookies=self.cookies) as r:
             response = await r.text("utf-8")
-            responsejson = json.loads(response)
+            responsejson = await asyncio.to_thread(json.loads, response)
         if not responsejson.get('contents').get('twoColumnWatchNextResults').get('playlist'):
             raise ValueError("playlist is unavaliable!")
         self.title = "".join([x for x in responsejson['contents']['twoColumnWatchNextResults']['playlist']['playlist']['title'] if x not in '"\\/:*?<>|().'])
@@ -476,7 +476,7 @@ class ytdownload:
         self.links =  [f'https://youtube.com/watch?v={i["playlistPanelVideoRenderer"]["videoId"]}' for i in responsejson if not i.get('messageRenderer')]
     async def _pick_formats(self):
         if not self.session:
-            self.session = aiohttp.ClientSession(connector=self._make_connector)
+            self.session = aiohttp.ClientSession(connector=self._make_connector())
         if self.start or self.end:
             duration = int(self.all_formats['misc']['lengthSeconds'])
             begin = None
@@ -523,12 +523,13 @@ class ytdownload:
                         video_ids.append(key)
                     elif 'video' in value['mimeType'] and not self.codec and not self.audioonly:
                         video_ids.append(key)
-                    elif 'audio' in value['mimeType']:
+                    elif 'audio' in value['mimeType'] and ((value.get('audioTrack') and value['audioTrack']['audioIsDefault'] is True) or value.get('audioTrack') is None):
                         if not self.mp3audio:
                             audio_ids.append(key)
                         elif 'mp4a' in value['mimeType']:
                             audio_ids.append(key)
-                
+                if len(video_ids) == 0 or len(audio_ids) == 0:
+                    raise self.no_valid_formats(f"Couldnt get all formats: videos: {len(video_ids)}, audios: {len(audio_ids)}")
                 if self.priority == "video" and not self.audioonly:
                     for video in video_ids:
                         for audio in audio_ids:
@@ -723,12 +724,14 @@ class ytdownload:
                     video_ids.append(key)
                 elif 'video' in value.get('mimeType') and not self.codec and not self.audioonly:
                     video_ids.append(key)
-                elif 'audio' in value.get('mimeType'):
+                elif 'audio' in value.get('mimeType') and ((value.get('audioTrack') and value['audioTrack']['audioIsDefault'] is True) or value.get('audioTrack') is None):
                     if self.mp3audio:
                         if 'mp4a' in value.get('mimeType'):
                             audio_ids.append(key)
                     else:
                         audio_ids.append(key)
+            if len(video_ids) == 0 or len(audio_ids) == 0:
+                raise self.no_valid_formats(f"Couldnt get all formats: videos: {len(video_ids)}, audios: {len(audio_ids)}")
             if not self.audioonly:
                 for i in video_ids:
                     for k in audio_ids:
@@ -953,7 +956,7 @@ class ytdownload:
             audio_bitrate = await asyncio.subprocess.create_subprocess_exec("ffprobe", *['-v', 'quiet', '-print_format', 'json', '-show_format', '-show_streams', '-i', temp_file_a], stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
             self.logger.debug("subprocess command:\nffprobe " + " ".join(['-v', 'quiet', '-print_format', 'json', '-show_format', '-show_streams', '-i', temp_file_a]))
             stdout, stderr = await audio_bitrate.communicate()
-            audio_bitrate = json.loads(stdout.decode()).get('streams')[0].get('bit_rate')
+            audio_bitrate = (await asyncio.to_thread(json.loads, stdout.decode())).get('streams')[0].get('bit_rate')
             self.manifest_video['audio_bitrate'] = audio_bitrate
             args = [x for x in ["-i" ,temp_file_v, "-i" ,temp_file_a ,"-c:v" ,"copy" ,"-c:a" if compatible else "", "copy" if compatible else "", "-ab" ,str(audio_bitrate), "-map", "0:v:0", "-map", "1:a:0" ,"-y" ,self.result_file] if x != ""]
             self.logger.debug(f"ffmpeg {' '.join(args)}")
@@ -971,7 +974,7 @@ class ytdownload:
             audio_bitrate = await asyncio.subprocess.create_subprocess_exec("ffprobe", *['-v', 'quiet', '-print_format', 'json', '-show_format', '-show_streams', '-i', self.result_file], stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
             self.logger.debug("subprocess command:\nffprobe " + " ".join(['-v', 'quiet', '-print_format', 'json', '-show_format', '-show_streams', '-i', self.result_file]))
             stdout, stderr = await audio_bitrate.communicate()
-            audio_bitrate = json.loads(stdout.decode()).get('streams', [{}])[0].get('bit_rate')
+            audio_bitrate = (await asyncio.to_thread(json.loads, stdout.decode())).get('streams', [{}])[0].get('bit_rate')
             self.manifest_video['audio_bitrate'] = audio_bitrate
         for x in [temp_file_a, temp_file_v]:
             try:
@@ -1205,63 +1208,68 @@ class ytdownload:
         def __init__(self, *args: object) -> None:
             super().__init__(*args)
     async def _generate_table(self):
-        table = prettytable.PrettyTable()
-        table.field_names = ['itag', 'formattype', 'codec', 'size','resol', 'bitrate','fps', 'type', 'audioQuality', 'prot']
-        temp_all = deepcopy(self.all_formats)
-        for key, value in temp_all['merged_sig'].items():
-            if value.get('contentLength') and isinstance(value.get('contentLength'), str):
-                continue
-            newurl = await self._decipher_url(value.get('signatureCipher'))
-            if newurl == value.get('signatureCipher'):
-                continue
-            async with self.session.head(newurl, ) as r:
-                self.logger.debug(f"request info: {json.dumps(self.request_to_dict(r.request_info, r))}")
-                self.all_formats['merged_sig'][key]['url'] = newurl
-                self.all_formats['merged_sig'][key]['contentLength'] = r.headers.get('content-length')
-        for key, value in temp_all['merged_unsig'].items():
-            if value.get('contentLength') and isinstance(value.get('contentLength'), str):
-                continue
-            async with self.session.head(value.get('url'), ) as r:
-                self.logger.debug(f"request info: {json.dumps(self.request_to_dict(r.request_info, r))}")
-                self.all_formats['merged_unsig'][key]['contentLength'] = r.headers.get('content-length')
-        if self.all_formats['manifest'].get('0'):
-            self.logger.debug('extracting manifest info')
-            await self._extract_manifest(self.all_formats['manifest'].get('0'))
-        allitags = []
-        all_entries = []
-        for i in list(self.all_formats['unmerged_sig'].values()) + list(self.all_formats['unmerged_unsig'].values()) + list(self.all_formats['merged_sig'].values()) + list(self.all_formats['merged_unsig'].values()) + list(self.all_formats['manifest'].values()):
-            itag = int(i.get('itag') if i.get('itag') else i.get('URL').split('itag/')[1].split('/')[0])
-            if itag not in allitags:
-                all_entries.append(i)
-                allitags.append(itag)
-        async with aiofiles.open(f"videoinfo/video-{self.video_id}.json", "w") as f1:
-            self.all_formats['misc'] = self.other_video_info
-            await f1.write(json.dumps(self.all_formats, indent=4))
-        sorted_entries = sorted(all_entries, key=lambda x: round(int(x.get('contentLength'))/(1024*1024), 2) if x.get('contentLength') else float(x.get('FILESIZE', 0.0)), reverse=False)
-        for entrydata in sorted_entries:
-            itag = entrydata.get('itag') if entrydata.get('itag') else entrydata.get('URL').split('itag/')[1].split('/')[0]
-            formattype = entrydata.get('mimeType', 'video/mp4').split(';')[0]
-            codec = entrydata.get('mimeType').split('codecs=')[1].replace('"', '') if entrydata.get('mimeType') else entrydata.get('CODECS')
-            try:
-                filesize = f"{round(int(entrydata.get('contentLength'))/(1024*1024), 2)}mb" if entrydata.get('contentLength') and not entrydata.get('type') else f'~{round(int(entrydata.get("contentLength"))/(1024*1024), 2)}mb' if entrydata.get('contentLength') and entrydata.get('type') else '~'+ str(entrydata.get('FILESIZE')) + 'mb'
-            except Exception as e:
-                self.logger.info(e)
-                self.logger.info(entrydata)
-            resolution = "x".join([str(entrydata.get('width')), str(entrydata.get('height'))]) if entrydata.get('width') else entrydata.get('RESOLUTION')
-            bitrate = entrydata.get('bitrate') if entrydata.get('bitrate') else entrydata.get('BANDWIDTH')
-            fps = entrydata.get('fps') if entrydata.get('fps') else entrydata.get('FRAME-RATE')
-            vidaud = 'both' if entrydata.get('CODECS') else 'audio' if 'audio' in entrydata.get('mimeType') else 'both' if entrydata.get('itag') in ['22', '18', '17', 22, 18, 17] else  'video' if 'video' in entrydata.get('mimeType') else 'None'
-            newlist = [itag, formattype, codec, filesize, resolution, bitrate, fps, vidaud]
-            for i in table.field_names[8:-1]:
-                newlist.append(entrydata.get(i, 'not available'))
-            if entrydata.get('BANDWIDTH'):
-                newlist.append('m3u8')
-            elif entrydata.get('type'):
-                newlist.append('DASH')
-            else:
-                newlist.append('https')
-            table.add_row(newlist)
-        return table
+        try:
+            table = prettytable.PrettyTable()
+            table.field_names = ['itag', 'formattype',  'audioLanguage', 'codec', 'size','resol', 'bitrate','fps', 'type', 'audioQuality', 'prot']
+            temp_all = await asyncio.to_thread(deepcopy, self.all_formats)
+            for key, value in temp_all['merged_sig'].items():
+                if value.get('contentLength') and isinstance(value.get('contentLength'), str):
+                    continue
+                newurl = await self._decipher_url(value.get('signatureCipher'))
+                if newurl == value.get('signatureCipher'):
+                    continue
+                async with self.session.head(newurl, ) as r:
+                    self.logger.debug(f"request info: {json.dumps(self.request_to_dict(r.request_info, r))}")
+                    self.all_formats['merged_sig'][key]['url'] = newurl
+                    self.all_formats['merged_sig'][key]['contentLength'] = r.headers.get('content-length')
+            for key, value in temp_all['merged_unsig'].items():
+                if value.get('contentLength') and isinstance(value.get('contentLength'), str):
+                    continue
+                async with self.session.head(value.get('url'), ) as r:
+                    self.logger.debug(f"request info: {json.dumps(self.request_to_dict(r.request_info, r))}")
+                    self.all_formats['merged_unsig'][key]['contentLength'] = r.headers.get('content-length')
+            if self.all_formats['manifest'].get('0'):
+                self.logger.debug('extracting manifest info')
+                await self._extract_manifest(self.all_formats['manifest'].get('0'))
+            allitags = []
+            all_entries = []
+            for i in list(self.all_formats['unmerged_sig'].values()) + list(self.all_formats['unmerged_unsig'].values()) + list(self.all_formats['merged_sig'].values()) + list(self.all_formats['merged_unsig'].values()) + list(self.all_formats['manifest'].values()):
+                itag = int(i.get('itag') if i.get('itag') else i.get('URL').split('itag/')[1].split('/')[0])
+                if itag not in allitags:
+                    all_entries.append(i)
+                    allitags.append(itag)
+            async with aiofiles.open(f"videoinfo/video-{self.video_id}.json", "w") as f1:
+                self.all_formats['misc'] = self.other_video_info
+                await f1.write(await asyncio.to_thread(json.dumps, self.all_formats, indent=4))
+            sorted_entries = await asyncio.to_thread(sorted, all_entries, key=lambda x: round(int(x.get('contentLength'))/(1024*1024), 2) if x.get('contentLength') else float(x.get('FILESIZE', 0.0)), reverse=False)
+            for entrydata in sorted_entries:
+                itag = entrydata.get('itag') if entrydata.get('itag') else entrydata.get('URL').split('itag/')[1].split('/')[0]
+                formattype = entrydata.get('mimeType', 'video/mp4').split(';')[0]
+                codec = entrydata.get('mimeType').split('codecs=')[1].replace('"', '') if entrydata.get('mimeType') else entrydata.get('CODECS')
+                try:
+                    filesize = f"{round(int(entrydata.get('contentLength'))/(1024*1024), 2)}mb" if entrydata.get('contentLength') and not entrydata.get('type') else f'~{round(int(entrydata.get("contentLength"))/(1024*1024), 2)}mb' if entrydata.get('contentLength') and entrydata.get('type') else '~'+ str(entrydata.get('FILESIZE')) + 'mb'
+                except Exception as e:
+                    self.logger.info(e)
+                    self.logger.info(entrydata)
+                resolution = "x".join([str(entrydata.get('width')), str(entrydata.get('height'))]) if entrydata.get('width') else entrydata.get('RESOLUTION')
+                bitrate = entrydata.get('bitrate') if entrydata.get('bitrate') else entrydata.get('BANDWIDTH')
+                fps = entrydata.get('fps') if entrydata.get('fps') else entrydata.get('FRAME-RATE')
+                audio_language = entrydata.get('audioTrack', {}).get("displayName")
+                vidaud = 'both' if entrydata.get('CODECS') else 'audio' if 'audio' in entrydata.get('mimeType') else 'both' if entrydata.get('itag') in ['22', '18', '17', 22, 18, 17] else  'video' if 'video' in entrydata.get('mimeType') else 'None'
+                newlist = [itag, formattype, audio_language, codec, filesize, resolution, bitrate, fps, vidaud]
+                for i in table.field_names[9:-1]:
+                    newlist.append(entrydata.get(i, 'not available'))
+                if entrydata.get('BANDWIDTH'):
+                    newlist.append('m3u8')
+                elif entrydata.get('type'):
+                    newlist.append('DASH')
+                else:
+                    newlist.append('https')
+                table.add_row(newlist)
+            return table
+        except:
+            traceback.print_exc()
+            return ""
                 
     async def get_video_info(self, link: str = None):
         if link:
@@ -1296,8 +1304,8 @@ class ytdownload:
         #     }
         special = None
         if os.path.exists("cookie_cache.json"):
-            with open("cookie_cache.json", "r") as f1:
-                cookie_cache = json.load(f1)
+            async with aiofiles.open("cookie_cache.json", "r") as f1:
+                cookie_cache = json.loads(await f1.read())
                 if datetime.now() < datetime.fromisoformat(cookie_cache.get("expiry")):
                     special = cookie_cache['special']
                     self.logger.debug(f"Got special code for rotating cookies from cache")
@@ -1329,11 +1337,11 @@ class ytdownload:
             async with self.session.get('https://accounts.youtube.com/RotateCookiesPage?origin=https://www.youtube.com&yt_pid=1', headers=headers) as r:
                 self.logger.debug(f"request info: {json.dumps(self.request_to_dict(r.request_info, r))}")
                 response = await r.text("utf-8")
-                special = re.search(r"init\(\'([\d\-]+)\',", response)
+                special = await asyncio.to_thread(re.search, r"init\(\'([\d\-]+)\',", response)
                 if not special:
                     raise ValueError(f"Please provide new cookies")
-                with open("cookie_cache.json", "w") as f1:
-                    json.dump({"special": special.group(1), "expiry": (datetime.now()+timedelta(days=1)).isoformat()}, f1)
+                async with aiofiles.open("cookie_cache.json", "w") as f1:
+                    await f1.write(json.dumps({"special": special.group(1), "expiry": (datetime.now()+timedelta(days=1)).isoformat()}))
                     self.logger.debug("got special cookie rotating code, caching for a day in cookie_cache.json")
                 special = special.group(1)
 
@@ -1368,22 +1376,22 @@ class ytdownload:
         async with self.session.post("https://accounts.youtube.com/RotateCookies", headers=self.logheaders, json=json_data) as r:
             self.logger.debug(f"request info: {json.dumps(self.request_to_dict(r.request_info, r))}")
             psidts = r.headers.get("Set-Cookie").split("=")[1].split(";")[0] if r.headers.get("Set-Cookie") else None
-            with open("env.py", "r") as f1:
-                env_f = f1.read()
+            async with aiofiles.open("env.py", "r") as f1:
+                env_f = await f1.read()
             if r.status == 401:
                 raise ValueError(f"Provide new cookies!")
             if psidts and r.status == 200:
                 env_f = env_f.replace(env.PSIDTS, psidts)
-                with open("env.py", "w") as f1:
-                    f1.write(env_f)
+                async with aiofiles.open("env.py", "w") as f1:
+                    await f1.write(env_f)
                 self.logger.debug(f"Refreshed cookie!")
                 env.PSIDTS = psidts
                 if self.cookies:
-                    with open("cookies.json", "w") as f1:
+                    async with aiofiles.open("cookies.json", "w") as f1:
                         cookies_ = self.cookies
                         for cookies in self.session.cookie_jar:
                             self.cookies[cookies.key] = cookies.value
-                        json.dump({'new': self.cookies, 'old': cookies_}, f1)
+                        await f1.write(json.dumps({'new': self.cookies, 'old': cookies_}))
                         self.logger.info("Cached rotated cookies in cookies.json")
                     self.cookie_str = ''
                     for key, value in self.cookies.items():
@@ -1452,8 +1460,8 @@ class ytdownload:
         if self.cookies:
             headers['cookie'] = ''
             if os.path.exists('cookies.json'):
-                with open("cookies.json", "r") as f1:
-                    cookies = json.load(f1)
+                async with aiofiles.open("cookies.json", "r") as f1:
+                    cookies = json.loads(await f1.read())
                     #if provided cookies are same as old ones, get refreshed new ones
                     for key, value in cookies['old'].items():
                         if self.cookies.get(key) != value:
@@ -1474,12 +1482,12 @@ class ytdownload:
         self.logger.debug(f"SENT GET REQUEST TO https://youtube.com/watch?v={self.video_id}")
 
         initialplayerresponsepattern = r'var ytInitialPlayerResponse = (.*?\"nanos\":(?:\d+)}}}})'
-        matches = re.search(initialplayerresponsepattern, response)
+        matches = await asyncio.to_thread(re.search, initialplayerresponsepattern, response)
         if not matches:
             raise ConnectionError(f"couldn't get the initial response from default youtube site")
-        responsejson: dict = json.loads(matches.group(1))
+        responsejson: dict = await asyncio.to_thread(json.loads, matches.group(1))
         basejspattern = r"href=\"(/s/player/(?:.*?)/player_(?:\w+)\.vflset/(?:.*?)/base\.js)\""
-        matches = re.search(basejspattern, response)
+        matches = await asyncio.to_thread(re.search, basejspattern, response)
         if not matches:
             raise FileNotFoundError(f"Couldn't find base.js in page source, maybe fault on my end?")
         self.basejslink = f"https://youtube.com{matches.group(1)}"
@@ -1578,8 +1586,7 @@ class ytdownload:
                     json=logjson_data, 
                 ) as r:         
                     self.logger.debug(f"request info: {json.dumps(self.request_to_dict(r.request_info, r))}")
-                    response = await r.text("utf-8")
-                    responsejson = json.loads(response)
+                    responsejson = await r.json("utf-8")
                 self.logger.debug(f"Playability Status: {responsejson['playabilityStatus'].get('status')}")
                 self.logger.debug(f"Other playability status information:\n{responsejson['playabilityStatus'].get('reason')}")
                 if responsejson['playabilityStatus']['status'] == "LOGIN_REQUIRED":
@@ -1614,13 +1621,13 @@ class ytdownload:
                 }
                 async with self.session.get(f"https://youtube.com/watch?v={self.video_id}", headers=_headers, ) as r:
                     response = await r.text(encoding="utf-8")
-                    response = response.encode("utf-8").decode("unicode_escape")
+                    response = (await asyncio.to_thread(response.encode, "utf-8")).decode("unicode_escape")
                     initialplayerresponsepattern = r'var ytInitialPlayerResponse = (.*?\"adBreakHeartbeatParams\":\"(?:.*?)\"\});</script>'
                     if "Sign in to" in response:
                         raise ValueError("bad cookies, get new ones")
-                    matches = re.search(initialplayerresponsepattern, response, re.DOTALL)
-                    with open("matches.txt", "w", encoding="utf-8") as f1:
-                        f1.write(response)
+                    matches = await asyncio.to_thread(re.search, initialplayerresponsepattern, response, re.DOTALL)
+                    async with aiofiles.open("matches.txt", "w", encoding="utf-8") as f1:
+                        await f1.write(response)
                     if not matches:
                         raise ConnectionError(f"couldn't get the initial response from default youtube site")
                     responsejson: dict = json.loads(matches.group(1))
@@ -1656,11 +1663,11 @@ class ytdownload:
                     if self.video_unmerged_info["0"].get("signatureCipher"):
                         self.logger.debug(f"found unmerged signatured formats from {source} response")
                         self.all_formats['unmerged_sig'] = self.video_unmerged_info
-                        self.sortdictbysize("unmerged_unsig")
+                        await asyncio.to_thread(self.sortdictbysize, "unmerged_unsig")
                     elif self.video_unmerged_info["0"].get("url"):
                         self.logger.debug(f"found unmerged unsignatured formats from {source} response")
                         self.all_formats['unmerged_unsig'] = self.video_unmerged_info
-                        self.sortdictbysize("unmerged_unsig")
+                        await asyncio.to_thread(self.sortdictbysize, "unmerged_unsig")
                 if self.video_merged_info.get("0"):
                     if self.video_merged_info["0"].get("signatureCipher"):
                         self.logger.debug(f"found merged signatured formats from {source} response")
@@ -1675,7 +1682,7 @@ class ytdownload:
                                     self.video_merged_info[key]['url'] = newurl
 
                         self.all_formats['merged_sig'] = self.video_merged_info
-                        self.sortdictbysize("merged_unsig")
+                        await asyncio.to_thread(self.sortdictbysize, "merged_unsig")
                     elif self.video_merged_info["0"].get("url"):
                         self.logger.debug(f"found merged unsignatured formats from {source} response")
                         for key, value in deepcopy(self.video_merged_info).items():
@@ -1687,7 +1694,7 @@ class ytdownload:
                                 self.logger.debug(f"request info: {json.dumps(self.request_to_dict(r.request_info, r))}")
                                 self.video_merged_info[key]['contentLength'] = r.headers.get('content-length')
                         self.all_formats['merged_unsig'] = self.video_merged_info
-                        self.sortdictbysize("merged_unsig")
+                        await asyncio.to_thread(self.sortdictbysize, "merged_unsig")
         elif responsejson['playabilityStatus'].get('status') == "ERROR":
             raise ValueError(f"Video Error from youtube: {responsejson['playabilityStatus'].get('reason')}")
         else:
@@ -1718,11 +1725,11 @@ class ytdownload:
                 if self.video_unmerged_info["0"].get("signatureCipher"):
                     self.logger.debug(f"found unmerged signatured formats from {source} response")
                     self.all_formats['unmerged_sig'] = self.video_unmerged_info
-                    self.sortdictbysize("unmerged_unsig")
+                    await asyncio.to_thread(self.sortdictbysize, "unmerged_unsig")
                 elif self.video_unmerged_info["0"].get("url"):
                     self.logger.debug(f"found unmerged unsignatured formats from {source} response")
                     self.all_formats['unmerged_unsig'] = self.video_unmerged_info
-                    self.sortdictbysize("unmerged_unsig")
+                    await asyncio.to_thread(self.sortdictbysize, "unmerged_unsig")
             if self.video_merged_info.get("0"):
                 if self.video_merged_info["0"].get("signatureCipher"):
                     self.logger.debug(f"found merged signatured formats from {source} response")
@@ -1737,7 +1744,7 @@ class ytdownload:
                                 self.video_merged_info[key]['url'] = newurl
 
                     self.all_formats['merged_sig'] = self.video_merged_info
-                    self.sortdictbysize("merged_unsig")
+                    await asyncio.to_thread(self.sortdictbysize, "merged_unsig")
                 elif self.video_merged_info["0"].get("url"):
                     self.logger.debug("found merged unsignatured formats from web response")
                     for key, value in deepcopy(self.video_merged_info).items():
@@ -1749,7 +1756,7 @@ class ytdownload:
                             self.logger.debug(f"request info: {json.dumps(self.request_to_dict(r.request_info, r))}")
                             self.video_merged_info[key]['contentLength'] = r.headers.get('content-length')
                     self.all_formats['merged_unsig'] = self.video_merged_info
-                    self.sortdictbysize("merged_unsig")
+                    await asyncio.to_thread(self.sortdictbysize, "merged_unsig")
         if not os.path.exists("videoinfo"):
             os.mkdir("videoinfo")
         self.got_functions = False
@@ -1827,8 +1834,7 @@ class ytdownload:
             
             ) as apiresponse:
                 self.logger.debug(f"request info: {json.dumps(self.request_to_dict(apiresponse.request_info, apiresponse))}")
-                apiresponse = await apiresponse.text("utf-8")
-                apiresponse = json.loads(apiresponse)
+                apiresponse = await apiresponse.json(encoding="utf-8")
                 api_responses[key] = apiresponse
 
         for count, (key, value) in enumerate(api_responses.items()):
@@ -1864,7 +1870,7 @@ class ytdownload:
                                     value.get('streamingData').get('formats')[i]['contentLength'] = int(content_length)
                         value.get('streamingData').get('formats')[i]['source'] = key
                         self.all_formats['merged_unsig'][str(i)] = value.get('streamingData').get('formats')[i]
-                    self.sortdictbysize('merged_unsig')
+                    await asyncio.to_thread(self.sortdictbysize, 'merged_unsig')
                 elif value['streamingData']['formats'][0].get('signatureCipher'):
                     self.logger.debug(f"found merged sig from {key}")
                     for i in range(len(value.get('streamingData').get('formats'))):
@@ -1882,7 +1888,7 @@ class ytdownload:
                                     value.get('streamingData').get('formats')[i]['contentLength'] = int(content_length)
                         value.get('streamingData').get('formats')[i]['source'] = key
                         self.all_formats['merged_sig'][str(i)] = value.get('streamingData').get('formats')[i]
-                    self.sortdictbysize('merged_sig')
+                    await asyncio.to_thread(self.sortdictbysize, 'merged_sig')
             if value['streamingData'].get('adaptiveFormats'):
                 if value['streamingData']['adaptiveFormats'][0].get('url') and not 'TVHTML5' in key:
                     self.logger.debug(f"found unmerged unsig in {key}")
@@ -1893,7 +1899,7 @@ class ytdownload:
                             continue
                         value['streamingData']['adaptiveFormats'][i]['source'] = key
                         self.all_formats['unmerged_unsig'][str(i)] = value['streamingData']['adaptiveFormats'][i]
-                    self.sortdictbysize('unmerged_unsig')
+                    await asyncio.to_thread(self.sortdictbysize, 'unmerged_unsig')
                 elif value['streamingData']['adaptiveFormats'][0].get('signatureCipher'):
                     self.logger.debug(f"found unmerged sig in {key}")
                     for i in range(len(value['streamingData']['adaptiveFormats'])):
@@ -1903,7 +1909,7 @@ class ytdownload:
                             continue
                         value['streamingData']['adaptiveFormats'][i]['source'] = key
                         self.all_formats['unmerged_sig'][str(i)] = value['streamingData']['adaptiveFormats'][i]
-                    self.sortdictbysize('unmerged_sig')
+                    await asyncio.to_thread(self.sortdictbysize, 'unmerged_sig')
         for key, value in self.all_formats.items():
             if isinstance(value, dict) and len(value.keys()) > 0:
                 self.logger.debug(f"{key} is avaliable")
@@ -1917,7 +1923,7 @@ class ytdownload:
                     if not isinstance(value, dict):
                         continue
                     if value.get('url'):
-                        self.expire = datetime.fromtimestamp(int(re.findall(r"expire=(\d+)", value.get('url'))[0]))
+                        self.expire = datetime.fromtimestamp(int(re.search(r"expire=(\d+)", value.get('url')).group(1)))
                         break
                 if self.expire:
                     break
@@ -2009,8 +2015,8 @@ class ytdownload:
             basejstext = await response.text("utf-8")
             if self.verbose:
                 self.logger.debug(f"Written base.js to base.js")
-                with open('base.js', "w") as f1:
-                    f1.write(basejstext)
+                async with aiofiles.open('base.js', "w") as f1:
+                    await f1.write(basejstext)
         sigpattern = r'(([\w$_]*?)=function\(\w\)\{\w=\w.split\(\"\"\)(.*?)return \w\.join\(\"\"\)\}\;)'
         sigmatches = re.search(sigpattern, basejstext)
         if not sigmatches:
@@ -2022,23 +2028,23 @@ class ytdownload:
             func_name = sigmatches.group(2)
             additional_func_str = sigmatches.group(3)
             func_names_pattern= r"([\w$_]+)\.(.*?)\((?:.*?)\)"
-            func_names = re.findall(func_names_pattern, additional_func_str)
+            func_names = await asyncio.to_thread(re.findall, func_names_pattern, additional_func_str)
             other_functions = set()
             temp = ""
             for j, i in func_names:
                 temp = j
-                other_funcs = re.search(i + r":function(?:.*?)\{(?:.*?)\}", basejstext)
+                other_funcs = await asyncio.to_thread(re.search, i + r":function(?:.*?)\{(?:.*?)\}", basejstext)
                 other_functions.add(other_funcs.group())
             self.js_text = ""
             for i in other_functions:
                 self.js_text += i.replace(':', '=', 1) + "\n"
             self.js_text += func_str.replace(temp + '.', '') + "\n"
             proto_n_param_pat = r"\(\w=([\w$]+)\[\d+\]\(\w+\),\w+.set"
-            proto_n = re.search(proto_n_param_pat, basejstext).group(1)
+            proto_n = (await asyncio.to_thread(re.search, proto_n_param_pat, basejstext)).group(1)
             n_func_name_pat = fr"var {re.escape(proto_n)}=\[(.*?)\]"
-            n_func_name = re.search(n_func_name_pat, basejstext).group(1)
+            n_func_name = (await asyncio.to_thread(re.search, n_func_name_pat, basejstext)).group(1)
             n_param_pat = re.escape(n_func_name) + r"=function\(\w\)\{var \w=(?:[\s\S]*?)return \w\.join\(\"\"\)\}"
-            n_param_code = re.search(n_param_pat, basejstext).group()
+            n_param_code = (await asyncio.to_thread(re.search, n_param_pat, basejstext)).group()
             n_param_code = re.sub(r"if\(typeof \S+===\"undefined\"\)return \w+;", ";", n_param_code)
             self.js_text += n_param_code + "\n"
             self.got_functions = True
@@ -2089,8 +2095,8 @@ class ytdownload:
             infodict['MAINURL'] = hls_manifest_url
             infodict['FILESIZE'] = str(round((((int(infodict.get('BANDWIDTH')) * int(self.other_video_info.get('lengthSeconds'))) / (1024*1024)) / 10), 2))
             itag_pattern = r"itag/(\d*)/"
-            infodict['video_itag'] = re.findall(itag_pattern, infodict['URL'])[0]
-            infodict['audio_itag'] = re.findall(itag_pattern, infodict['AUDIOLINK'])[0]
+            infodict['video_itag'] = re.search(itag_pattern, infodict['URL']).group(1)
+            infodict['audio_itag'] = re.search(itag_pattern, infodict['AUDIOLINK']).group(1)
             parsedvalues[str(index)] = infodict
         self.all_formats['manifest'] = {idx: item for idx, item in enumerate(dict(sorted(parsedvalues.items(), key=lambda x: float(x[1]['FILESIZE']), reverse=True)).values())}
 
@@ -2129,9 +2135,9 @@ class ytdownload:
             cookies = self.cookies
             for cookies_ in self.session.cookie_jar:
                 cookies[cookies_.key] = cookies_.value
-            with open("cookies.json", "w") as f1:
+            async with aiofiles.open("cookies.json", "w") as f1:
                 cookies = self.cookies
-                json.dump({'new': cookies, 'old': self.cookies}, f1)
+                await f1.write(await asyncio.to_thread(json.dumps, {'new': cookies, 'old': self.cookies}))
                 self.logger.info("Cached rotated cookies in cookies.json")
         if self.session:
             await self.session.close()
