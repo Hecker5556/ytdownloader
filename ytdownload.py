@@ -1,4 +1,5 @@
 import asyncio, aiohttp, aiofiles, json, re, prettytable, logging, os, traceback
+import sys
 from aiohttp_socks import ProxyConnector
 from tqdm import tqdm
 from datetime import datetime, timedelta
@@ -123,11 +124,17 @@ class ytdownload:
                     continue
                 case "verbose":
                     if isinstance(value, bool) and value == True and not self.logger:
-                        logging.basicConfig(level=logging.DEBUG, format="[%(asctime)s] - %(message)s, line %(lineno)d", datefmt='%H:%M:%S')
                         self.logger = logging.getLogger(__name__)
+                        handler = logging.StreamHandler(sys.stdout)
+                        handler.setLevel(logging.DEBUG)
+                        handler.setFormatter(logging.Formatter("[%(asctime)s] - %(message)s, line %(lineno)d", datefmt='%H:%M:%S'))
+                        self.logger.addHandler(handler)
                     elif isinstance(value, bool) and value == False or value == None and not self.logger:
-                        logging.basicConfig(level=logging.INFO, format="[%(asctime)s] - %(message)s, line %(lineno)d", datefmt='%H:%M:%S')
                         self.logger = logging.getLogger(__name__)
+                        handler = logging.StreamHandler(sys.stdout)
+                        handler.setLevel(logging.INFO)
+                        handler.setFormatter(logging.Formatter("[%(asctime)s] - %(message)s, line %(lineno)d", datefmt='%H:%M:%S'))
+                        self.logger.addHandler(handler)
                     else:
                         print(f"{key}={value} is not a valid argument")
                 case "manifest":
